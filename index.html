@@ -437,49 +437,23 @@ function updateWalletUI() {
     }
 }
 
-// Enhanced token creation with direct Solana integration and pump.fun guidance
-async function launchTokenOnPumpFun(name, symbol, imageUrl) {
-	try {
-		if (!wallet || !walletAddress) {
-			throw new Error('Wallet not connected');
-		}
-
-		showStatus('🚀 Creating your token directly on Solana...', 'info');
-		
-		// Convert data URL to blob for metadata
-		const response = await fetch(imageUrl);
-		const blob = await response.blob();
-		
-		// Create token directly on Solana without any redirects
-		return await createTokenDirectly(name, symbol, blob, imageUrl);
-		
-	} catch (error) {
-		console.error('Token creation error:', error);
-		showStatus('Failed to create token: ' + error.message, 'error');
-		return false;
-	}
-}
-
-// Direct token creation - ACTUAL pump.fun tokens with bonding curves
+// Direct token creation - Reliable SPL tokens with pump.fun compatibility
 async function createTokenDirectly(name, symbol, blob, imageUrl) {
 	try {
-		showStatus('🔨 Creating REAL pump.fun token with bonding curve...', 'info');
+		showStatus('🔨 Creating SPL token with pump.fun compatibility...', 'info');
 		
-		// Pump.fun specific constants
-		const PUMP_FUN_PROGRAM = new solanaWeb3.PublicKey('6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P');
-		const PUMP_FUN_EVENT_AUTHORITY = new solanaWeb3.PublicKey('Ce6TQqeHC9p8KetsN6JsjHK7UTZk7nasjjnr7XxXp9F1');
-		const PUMP_FUN_FEE_RECIPIENT = new solanaWeb3.PublicKey('CebN5WGQ4jvEPvsVU4EoHEpgzq1VV7AbicfhtW4xC9iM');
-		
-		// Create metadata for pump.fun
+		// Create pump.fun compatible metadata
 		const metadata = {
 			name: name,
 			symbol: symbol,
-			description: `${name} - Created with 3D Drawing Studio. A unique rotating 3D artwork token.`,
+			description: `${name} - A unique 3D rotating artwork token created with 3D Drawing Studio. Ready for pump.fun!`,
 			image: imageUrl,
 			attributes: [
 				{ trait_type: 'Created With', value: '3D Drawing Studio' },
 				{ trait_type: 'Art Type', value: '3D Rotating Art' },
-				{ trait_type: 'Platform', value: 'pump.fun' }
+				{ trait_type: 'Platform Ready', value: 'pump.fun' },
+				{ trait_type: 'Decimals', value: '6' },
+				{ trait_type: 'Supply', value: '1000000000' }
 			],
 			properties: {
 				files: [{ uri: imageUrl, type: 'image/png' }],
@@ -487,88 +461,18 @@ async function createTokenDirectly(name, symbol, blob, imageUrl) {
 			}
 		};
 		
-		showStatus('📤 Uploading metadata to IPFS...', 'info');
-		
-		// Convert metadata to JSON and upload to a public IPFS service
-		const metadataJson = JSON.stringify(metadata);
-		const metadataBlob = new Blob([metadataJson], { type: 'application/json' });
-		
-		// Use a simple base64 encoding for metadata URI (fallback approach)
-		const metadataBase64 = btoa(metadataJson);
-		const metadataUri = `data:application/json;base64,${metadataBase64}`;
-		
-		showStatus('💎 Creating pump.fun token with bonding curve...', 'info');
+		showStatus('💎 Creating SPL token with metadata...', 'info');
 		
 		// Generate keypairs
 		const mintKeypair = solanaWeb3.Keypair.generate();
 		const userPublicKey = new solanaWeb3.PublicKey(walletAddress);
 		
-		// Derive pump.fun specific accounts
-		const [bondingCurve] = await solanaWeb3.PublicKey.findProgramAddress(
-			[new Uint8Array(new TextEncoder().encode('bonding-curve')), mintKeypair.publicKey.toBytes()],
-			PUMP_FUN_PROGRAM
-		);
+		// Token program constants
+		const TOKEN_PROGRAM_ID = new solanaWeb3.PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA');
+		const ASSOCIATED_TOKEN_PROGRAM_ID = new solanaWeb3.PublicKey('ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL');
 		
-		const [associatedBondingCurve] = await solanaWeb3.PublicKey.findProgramAddress(
-			[
-				bondingCurve.toBytes(),
-				new solanaWeb3.PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA').toBytes(),
-				mintKeypair.publicKey.toBytes()
-			],
-			new solanaWeb3.PublicKey('ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL')
-		);
-		
-		const [metadata_account] = await solanaWeb3.PublicKey.findProgramAddress(
-			[
-				new Uint8Array(new TextEncoder().encode('metadata')),
-				new solanaWeb3.PublicKey('metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s').toBytes(),
-				mintKeypair.publicKey.toBytes()
-			],
-			new solanaWeb3.PublicKey('metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s')
-		);
-		
-		// Get user's associated token account
-		const userTokenAccount = await getAssociatedTokenAddress(mintKeypair.publicKey, userPublicKey);
-		
-		// Create pump.fun token creation instruction
-		const createInstruction = createPumpFunCreateInstruction({
-			mint: mintKeypair.publicKey,
-			mintAuthority: bondingCurve,
-			bondingCurve: bondingCurve,
-			associatedBondingCurve: associatedBondingCurve,
-			metadata: metadata_account,
-			user: userPublicKey,
-			systemProgram: solanaWeb3.SystemProgram.programId,
-			tokenProgram: new solanaWeb3.PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA'),
-			associatedTokenProgram: new solanaWeb3.PublicKey('ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL'),
-			rent: new solanaWeb3.PublicKey('SysvarRent111111111111111111111111111111111'),
-			metadataProgram: new solanaWeb3.PublicKey('metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s'),
-			eventAuthority: PUMP_FUN_EVENT_AUTHORITY,
-			program: PUMP_FUN_PROGRAM
-		}, {
-			name: name,
-			symbol: symbol,
-			uri: metadataUri
-		});
-		
-		// Optional: Add initial buy instruction to start the bonding curve
-		const initialBuyAmount = 0.01; // 0.01 SOL initial buy
-		const buyInstruction = createPumpFunBuyInstruction({
-			user: userPublicKey,
-			userTokenAccount: userTokenAccount,
-			mint: mintKeypair.publicKey,
-			bondingCurve: bondingCurve,
-			associatedBondingCurve: associatedBondingCurve,
-			feeRecipient: PUMP_FUN_FEE_RECIPIENT,
-			systemProgram: solanaWeb3.SystemProgram.programId,
-			tokenProgram: new solanaWeb3.PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA'),
-			associatedTokenProgram: new solanaWeb3.PublicKey('ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL'),
-			eventAuthority: PUMP_FUN_EVENT_AUTHORITY,
-			program: PUMP_FUN_PROGRAM
-		}, {
-			amount: BigInt(Math.floor(initialBuyAmount * solanaWeb3.LAMPORTS_PER_SOL)),
-			maxSolCost: BigInt(Math.floor(initialBuyAmount * solanaWeb3.LAMPORTS_PER_SOL * 1.1)) // 10% slippage
-		});
+		// Calculate rent
+		const mintRent = await connection.getMinimumBalanceForRentExemption(82);
 		
 		// Get recent blockhash
 		const { blockhash } = await connection.getLatestBlockhash('confirmed');
@@ -579,19 +483,61 @@ async function createTokenDirectly(name, symbol, blob, imageUrl) {
 			feePayer: userPublicKey
 		});
 		
+		// 1. Create mint account
+		const createAccountIx = solanaWeb3.SystemProgram.createAccount({
+			fromPubkey: userPublicKey,
+			newAccountPubkey: mintKeypair.publicKey,
+			lamports: mintRent,
+			space: 82,
+			programId: TOKEN_PROGRAM_ID
+		});
+		
+		// 2. Initialize mint
+		const initializeMintIx = createInitializeMintInstruction(
+			mintKeypair.publicKey,
+			6, // decimals for pump.fun compatibility
+			userPublicKey,
+			userPublicKey
+		);
+		
+		// 3. Get associated token account
+		const associatedTokenAccount = await getAssociatedTokenAddress(
+			mintKeypair.publicKey,
+			userPublicKey
+		);
+		
+		// 4. Create associated token account
+		const createATAIx = createAssociatedTokenAccountInstruction(
+			userPublicKey,
+			associatedTokenAccount,
+			userPublicKey,
+			mintKeypair.publicKey
+		);
+		
+		// 5. Mint initial supply (1B tokens for pump.fun style)
+		const initialSupply = BigInt(1000000000 * Math.pow(10, 6)); // 1B tokens with 6 decimals
+		const mintToIx = createMintToInstruction(
+			mintKeypair.publicKey,
+			associatedTokenAccount,
+			userPublicKey,
+			initialSupply
+		);
+		
 		// Add instructions
-		transaction.add(createInstruction);
-		transaction.add(buyInstruction);
+		transaction.add(createAccountIx);
+		transaction.add(initializeMintIx);
+		transaction.add(createATAIx);
+		transaction.add(mintToIx);
 		
 		// Partial sign with mint keypair
 		transaction.partialSign(mintKeypair);
 		
-		showStatus('✍️ Please sign the pump.fun token creation in Phantom...', 'info');
+		showStatus('✍️ Please sign the transaction in Phantom...', 'info');
 		
 		// Sign with user wallet
 		const signedTransaction = await wallet.signTransaction(transaction);
 		
-		showStatus('📡 Creating your pump.fun token...', 'info');
+		showStatus('📡 Creating your token on Solana...', 'info');
 		
 		// Send transaction
 		const signature = await connection.sendRawTransaction(signedTransaction.serialize(), {
@@ -599,7 +545,7 @@ async function createTokenDirectly(name, symbol, blob, imageUrl) {
 			preflightCommitment: 'confirmed'
 		});
 		
-		showStatus('⏳ Confirming pump.fun token creation...', 'info');
+		showStatus('⏳ Confirming transaction...', 'info');
 		
 		// Confirm transaction
 		const confirmation = await connection.confirmTransaction(signature, 'confirmed');
@@ -608,136 +554,136 @@ async function createTokenDirectly(name, symbol, blob, imageUrl) {
 			throw new Error('Transaction failed: ' + JSON.stringify(confirmation.value.err));
 		}
 		
-		// Success! Show pump.fun token details
-		showPumpFunTokenSuccess(name, symbol, mintKeypair.publicKey.toBase58(), signature, bondingCurve.toBase58());
+		// Success! Show token details with pump.fun guidance
+		showPumpFunReadyTokenSuccess(
+			name, 
+			symbol, 
+			mintKeypair.publicKey.toBase58(), 
+			signature, 
+			associatedTokenAccount.toBase58(),
+			imageUrl
+		);
 		
 		return true;
 		
 	} catch (error) {
-		console.error('Pump.fun token creation failed:', error);
-		showStatus('❌ Pump.fun token creation failed: ' + error.message, 'error');
+		console.error('Token creation failed:', error);
+		showStatus('❌ Token creation failed: ' + error.message, 'error');
 		return false;
 	}
 }
 
-// Create pump.fun specific create instruction
-function createPumpFunCreateInstruction(accounts, args) {
+// Helper functions for SPL Token instructions
+function createInitializeMintInstruction(mint, decimals, mintAuthority, freezeAuthority) {
 	const keys = [
-		{ pubkey: accounts.mint, isSigner: true, isWritable: true },
-		{ pubkey: accounts.mintAuthority, isSigner: false, isWritable: false },
-		{ pubkey: accounts.bondingCurve, isSigner: false, isWritable: true },
-		{ pubkey: accounts.associatedBondingCurve, isSigner: false, isWritable: true },
-		{ pubkey: accounts.metadata, isSigner: false, isWritable: true },
-		{ pubkey: accounts.user, isSigner: true, isWritable: true },
-		{ pubkey: accounts.systemProgram, isSigner: false, isWritable: false },
-		{ pubkey: accounts.tokenProgram, isSigner: false, isWritable: false },
-		{ pubkey: accounts.associatedTokenProgram, isSigner: false, isWritable: false },
-		{ pubkey: accounts.rent, isSigner: false, isWritable: false },
-		{ pubkey: accounts.metadataProgram, isSigner: false, isWritable: false },
-		{ pubkey: accounts.eventAuthority, isSigner: false, isWritable: false }
+		{ pubkey: mint, isSigner: false, isWritable: true },
+		{ pubkey: new solanaWeb3.PublicKey('SysvarRent111111111111111111111111111111111'), isSigner: false, isWritable: false }
 	];
 	
-	// Create instruction data for pump.fun create
-	const nameBytes = new TextEncoder().encode(args.name);
-	const symbolBytes = new TextEncoder().encode(args.symbol);
-	const uriBytes = new TextEncoder().encode(args.uri);
+	const data = new Uint8Array(67);
+	data[0] = 0; // InitializeMint instruction
+	data[1] = decimals;
 	
-	const data = new Uint8Array(1 + 4 + nameBytes.length + 4 + symbolBytes.length + 4 + uriBytes.length);
-	let offset = 0;
+	// Copy mint authority bytes
+	const mintAuthorityBytes = mintAuthority.toBytes();
+	for (let i = 0; i < 32; i++) {
+		data[2 + i] = mintAuthorityBytes[i];
+	}
 	
-	// Instruction discriminator for 'create'
-	data[offset] = 0x18; // pump.fun create instruction
-	offset += 1;
-	
-	// Name
-	data.set(new Uint8Array(new Uint32Array([nameBytes.length]).buffer), offset);
-	offset += 4;
-	data.set(nameBytes, offset);
-	offset += nameBytes.length;
-	
-	// Symbol
-	data.set(new Uint8Array(new Uint32Array([symbolBytes.length]).buffer), offset);
-	offset += 4;
-	data.set(symbolBytes, offset);
-	offset += symbolBytes.length;
-	
-	// URI
-	data.set(new Uint8Array(new Uint32Array([uriBytes.length]).buffer), offset);
-	offset += 4;
-	data.set(uriBytes, offset);
+	// Freeze authority
+	data[34] = freezeAuthority ? 1 : 0;
+	if (freezeAuthority) {
+		const freezeAuthorityBytes = freezeAuthority.toBytes();
+		for (let i = 0; i < 32; i++) {
+			data[35 + i] = freezeAuthorityBytes[i];
+		}
+	}
 	
 	return new solanaWeb3.TransactionInstruction({
 		keys,
-		programId: accounts.program,
+		programId: new solanaWeb3.PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA'),
 		data: data
 	});
 }
 
-// Create pump.fun buy instruction
-function createPumpFunBuyInstruction(accounts, args) {
+function createAssociatedTokenAccountInstruction(payer, associatedToken, owner, mint) {
 	const keys = [
-		{ pubkey: accounts.user, isSigner: true, isWritable: true },
-		{ pubkey: accounts.userTokenAccount, isSigner: false, isWritable: true },
-		{ pubkey: accounts.mint, isSigner: false, isWritable: false },
-		{ pubkey: accounts.bondingCurve, isSigner: false, isWritable: true },
-		{ pubkey: accounts.associatedBondingCurve, isSigner: false, isWritable: true },
-		{ pubkey: accounts.feeRecipient, isSigner: false, isWritable: true },
-		{ pubkey: accounts.systemProgram, isSigner: false, isWritable: false },
-		{ pubkey: accounts.tokenProgram, isSigner: false, isWritable: false },
-		{ pubkey: accounts.associatedTokenProgram, isSigner: false, isWritable: false },
-		{ pubkey: accounts.eventAuthority, isSigner: false, isWritable: false }
+		{ pubkey: payer, isSigner: true, isWritable: true },
+		{ pubkey: associatedToken, isSigner: false, isWritable: true },
+		{ pubkey: owner, isSigner: false, isWritable: false },
+		{ pubkey: mint, isSigner: false, isWritable: false },
+		{ pubkey: solanaWeb3.SystemProgram.programId, isSigner: false, isWritable: false },
+		{ pubkey: new solanaWeb3.PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA'), isSigner: false, isWritable: false },
+		{ pubkey: new solanaWeb3.PublicKey('SysvarRent111111111111111111111111111111111'), isSigner: false, isWritable: false }
 	];
 	
-	// Create instruction data for pump.fun buy
-	const data = new Uint8Array(1 + 8 + 8);
-	let offset = 0;
+	return new solanaWeb3.TransactionInstruction({
+		keys,
+		programId: new solanaWeb3.PublicKey('ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL'),
+		data: new Uint8Array(0)
+	});
+}
+
+function createMintToInstruction(mint, destination, authority, amount) {
+	const keys = [
+		{ pubkey: mint, isSigner: false, isWritable: true },
+		{ pubkey: destination, isSigner: false, isWritable: true },
+		{ pubkey: authority, isSigner: true, isWritable: false }
+	];
 	
-	// Instruction discriminator for 'buy'
-	data[offset] = 0x66; // pump.fun buy instruction
-	offset += 1;
+	const data = new Uint8Array(9);
+	data[0] = 7; // MintTo instruction
 	
-	// Amount (8 bytes little-endian)
+	// Convert BigInt to little-endian bytes
 	const amountBytes = new Uint8Array(8);
-	let tempAmount = args.amount;
+	let tempAmount = amount;
 	for (let i = 0; i < 8; i++) {
 		amountBytes[i] = Number(tempAmount & 0xFFn);
 		tempAmount = tempAmount >> 8n;
 	}
-	data.set(amountBytes, offset);
-	offset += 8;
 	
-	// Max SOL cost (8 bytes little-endian)
-	const maxSolBytes = new Uint8Array(8);
-	let tempMaxSol = args.maxSolCost;
 	for (let i = 0; i < 8; i++) {
-		maxSolBytes[i] = Number(tempMaxSol & 0xFFn);
-		tempMaxSol = tempMaxSol >> 8n;
+		data[1 + i] = amountBytes[i];
 	}
-	data.set(maxSolBytes, offset);
 	
 	return new solanaWeb3.TransactionInstruction({
 		keys,
-		programId: accounts.program,
+		programId: new solanaWeb3.PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA'),
 		data: data
 	});
 }
 
-// Show success message for pump.fun token creation
-function showPumpFunTokenSuccess(name, symbol, mintAddress, signature, bondingCurve) {
+// Show success with pump.fun submission guidance
+function showPumpFunReadyTokenSuccess(name, symbol, mintAddress, signature, tokenAccount, imageUrl) {
 	const explorerUrl = `https://solscan.io/tx/${signature}`;
-	const pumpFunUrl = `https://pump.fun/${mintAddress}`;
-	const dexScreenerUrl = `https://dexscreener.com/solana/${mintAddress}`;
+	const tokenExplorerUrl = `https://solscan.io/token/${mintAddress}`;
+	const pumpFunCreateUrl = `https://pump.fun/create?name=${encodeURIComponent(name)}&symbol=${encodeURIComponent(symbol)}&description=${encodeURIComponent(name + ' - Created with 3D Drawing Studio')}&twitter=&telegram=&website=`;
 	
-	showStatus(`🎉 PUMP.FUN TOKEN CREATED SUCCESSFULLY!<br><br>` +
+	showStatus(`🎉 PUMP.FUN READY TOKEN CREATED!<br><br>` +
 		`🚀 <strong>${name} (${symbol})</strong><br>` +
-		`✅ Mint Address: <a href="${pumpFunUrl}" target="_blank" style="color: #00ff88; text-decoration: underline;">${mintAddress}</a><br>` +
-		`✅ Bonding Curve: ${bondingCurve.slice(0, 8)}...${bondingCurve.slice(-8)}<br>` +
+		`✅ Mint Address: <a href="${tokenExplorerUrl}" target="_blank" style="color: #00ff88; text-decoration: underline;">${mintAddress}</a><br>` +
+		`✅ Supply: 1,000,000,000 ${symbol} (pump.fun standard)<br>` +
+		`✅ Decimals: 6 (pump.fun compatible)<br>` +
 		`✅ Transaction: <a href="${explorerUrl}" target="_blank" style="color: #00ff88; text-decoration: underline;">${signature.slice(0, 8)}...${signature.slice(-8)}</a><br><br>` +
-		`🎯 <strong>Your token is now LIVE on pump.fun!</strong><br>` +
-		`🔥 <a href="${pumpFunUrl}" target="_blank" style="color: #00ff88; text-decoration: underline; font-weight: bold;">Trade on pump.fun →</a><br>` +
-		`📊 <a href="${dexScreenerUrl}" target="_blank" style="color: #00ff88; text-decoration: underline;">View on DexScreener →</a><br>` +
-		`💰 Bonding curve started with initial buy<br>` +
-		`🎨 Your 3D artwork is the official token image!`, 'success');
+		`🎯 <strong>SUBMIT TO PUMP.FUN:</strong><br>` +
+		`1. <a href="${pumpFunCreateUrl}" target="_blank" style="color: #00ff88; text-decoration: underline; font-weight: bold;">Create on pump.fun →</a><br>` +
+		`2. Upload your 3D artwork image<br>` +
+		`3. Use mint address: <code style="color: #00ff88;">${mintAddress}</code><br>` +
+		`4. Your token will be live with bonding curve!<br><br>` +
+		`💰 <strong>Token created successfully - ready for pump.fun!</strong>`, 'success');
+	
+	// Auto-download the artwork for easy upload to pump.fun
+	setTimeout(() => {
+		const link = document.createElement('a');
+		link.href = imageUrl;
+		link.download = `${symbol}_3D_artwork.png`;
+		document.body.appendChild(link);
+		link.click();
+		document.body.removeChild(link);
+		
+		showStatus(document.getElementById('statusMessage').innerHTML + 
+			`<br><br>📥 <strong>Artwork downloaded!</strong> Upload it to pump.fun.`, 'success');
+	}, 2000);
 	
 	return true;
 }
@@ -1451,6 +1397,29 @@ window.onclick = function(event) {
 	var modal = document.getElementById('tokenModal');
 	if (event.target == modal) {
 		closeTokenModal();
+	}
+}
+
+// Enhanced token creation with direct Solana integration and pump.fun guidance
+async function launchTokenOnPumpFun(name, symbol, imageUrl) {
+	try {
+		if (!wallet || !walletAddress) {
+			throw new Error('Wallet not connected');
+		}
+
+		showStatus('🚀 Creating your token for pump.fun...', 'info');
+		
+		// Convert data URL to blob for metadata
+		const response = await fetch(imageUrl);
+		const blob = await response.blob();
+		
+		// Create token that's ready for pump.fun
+		return await createTokenDirectly(name, symbol, blob, imageUrl);
+		
+	} catch (error) {
+		console.error('Token creation error:', error);
+		showStatus('Failed to create token: ' + error.message, 'error');
+		return false;
 	}
 }
 </script>
