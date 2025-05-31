@@ -44,12 +44,12 @@ body {
 .modal {
 	display: none;
 	position: fixed;
-	z-index: 1000;
+	z-index: 10000;
 	left: 0;
 	top: 0;
 	width: 100%;
 	height: 100%;
-	background-color: rgba(26, 11, 46, 0.9);
+	background-color: rgba(26, 11, 46, 0.95);
 	backdrop-filter: blur(10px);
 }
 
@@ -64,7 +64,7 @@ body {
 	box-shadow: 0 20px 40px rgba(0, 255, 136, 0.3);
 	animation: modalSlideIn 0.3s ease-out;
 	position: relative;
-	z-index: 1001;
+	z-index: 10001;
 }
 
 @keyframes modalSlideIn {
@@ -96,7 +96,7 @@ body {
 .form-group {
 	margin-bottom: 20px;
 	position: relative;
-	z-index: 1002;
+	z-index: 10002;
 }
 
 .form-group label {
@@ -105,7 +105,7 @@ body {
 	margin-bottom: 8px;
 	font-weight: 500;
 	position: relative;
-	z-index: 1002;
+	z-index: 10002;
 }
 
 .form-group input {
@@ -113,44 +113,25 @@ body {
 	padding: 12px;
 	border: 2px solid #444;
 	border-radius: 10px;
-	background: rgba(255, 255, 255, 0.1);
+	background: #2a1f3d;
 	color: #fff;
 	font-size: 16px;
 	font-family: inherit;
-	transition: border-color 0.3s;
 	box-sizing: border-box;
 	outline: none;
+	-webkit-appearance: none;
+	-moz-appearance: none;
+	appearance: none;
 }
 
 .form-group input:focus {
-	outline: none;
 	border-color: #00ff88;
+	background: #3a2f4d;
 	box-shadow: 0 0 10px rgba(0, 255, 136, 0.3);
-	background: rgba(255, 255, 255, 0.15);
-}
-
-.form-group input:active {
-	background: rgba(255, 255, 255, 0.15);
 }
 
 .form-group input::placeholder {
-	color: #aaa;
-	opacity: 1;
-}
-
-.form-group input::-webkit-input-placeholder {
-	color: #aaa;
-	opacity: 1;
-}
-
-.form-group input::-moz-placeholder {
-	color: #aaa;
-	opacity: 1;
-}
-
-.form-group input:-ms-input-placeholder {
-	color: #aaa;
-	opacity: 1;
+	color: #888;
 }
 
 .preview-container {
@@ -988,27 +969,60 @@ function openTokenModal() {
 		// Update wallet UI
 		updateWalletUI();
 		
-		// Simple input setup
+		// Setup inputs with delay to ensure DOM is ready
 		setTimeout(function() {
-			var nameInput = document.getElementById('tokenName');
-			var tickerInput = document.getElementById('tokenTicker');
-			
-			if (nameInput) {
-				nameInput.value = '';
-				nameInput.focus();
-				console.log('Name input cleared and focused');
-			}
-			
-			if (tickerInput) {
-				tickerInput.value = '';
-				console.log('Ticker input cleared');
-			}
-		}, 300);
+			setupInputs();
+		}, 500);
 		
 	} catch (error) {
 		console.error('Error in openTokenModal:', error);
 		alert('Error opening token modal: ' + error.message);
 	}
+}
+
+function setupInputs() {
+	console.log('Setting up inputs...');
+	
+	// Generate random token name and ticker
+	var randomNames = ['Awesome Token', 'Moon Rocket', 'Diamond Hands', 'Pump Master', 'Crypto King', 'Space Token', 'Golden Coin', 'Super Token'];
+	var randomTickers = ['AWSM', 'MOON', 'DIAM', 'PUMP', 'KING', 'SPCE', 'GOLD', 'SUPR'];
+	
+	var randomName = randomNames[Math.floor(Math.random() * randomNames.length)];
+	var randomTicker = randomTickers[Math.floor(Math.random() * randomTickers.length)];
+	
+	var nameInput = document.getElementById('tokenName');
+	var tickerInput = document.getElementById('tokenTicker');
+	
+	if (nameInput) {
+		nameInput.value = randomName;
+		console.log('Name input auto-filled with:', randomName);
+	}
+	
+	if (tickerInput) {
+		tickerInput.value = randomTicker;
+		console.log('Ticker input auto-filled with:', randomTicker);
+	}
+}
+
+function handleNameInput(e) {
+	console.log('Name input changed:', e.target.value);
+}
+
+function handleTickerInput(e) {
+	// Auto-uppercase ticker
+	e.target.value = e.target.value.toUpperCase();
+	console.log('Ticker input changed:', e.target.value);
+}
+
+function handleInputFocus(e) {
+	console.log('Input focused:', e.target.id);
+	e.target.style.borderColor = '#00ff88';
+}
+
+function handleInputClick(e) {
+	console.log('Input clicked:', e.target.id);
+	e.stopPropagation();
+	e.target.focus();
 }
 
 function closeTokenModal() {
@@ -1139,16 +1153,6 @@ window.addEventListener('load', function() {
 	// Initialize Solana
 	initializeSolana();
 	
-	// Add simple event listeners for inputs
-	var nameInput = document.getElementById('tokenName');
-	var tickerInput = document.getElementById('tokenTicker');
-	
-	if (tickerInput) {
-		tickerInput.addEventListener('input', function() {
-			this.value = this.value.toUpperCase();
-		});
-	}
-	
 	// Add backup event listener for launch button
 	var launchBtn = document.getElementById('launchTokenBtn');
 	if (launchBtn) {
@@ -1193,34 +1197,25 @@ window.addEventListener('load', function() {
 			<div id="walletAddress" class="wallet-address"></div>
 		</div>
 		
-		<form onsubmit="return false;">
-			<div class="form-group">
-				<label for="tokenName">Token Name:</label>
-				<input 
-					type="text" 
-					id="tokenName" 
-					name="tokenName"
-					placeholder="Enter token name (e.g., My Awesome Token)" 
-					maxlength="50"
-					autocomplete="off"
-					spellcheck="false"
-				/>
-			</div>
-			
-			<div class="form-group">
-				<label for="tokenTicker">Ticker Symbol:</label>
-				<input 
-					type="text" 
-					id="tokenTicker" 
-					name="tokenTicker"
-					placeholder="Enter ticker (e.g., MAT)" 
-					maxlength="10" 
-					style="text-transform: uppercase;"
-					autocomplete="off"
-					spellcheck="false"
-				/>
-			</div>
-		</form>
+		<div style="margin: 20px 0;">
+			<label style="display: block; color: #fff; margin-bottom: 8px; font-weight: 500;">Token Name:</label>
+			<input 
+				type="text" 
+				id="tokenName" 
+				placeholder="Enter token name"
+				style="width: 100%; padding: 12px; border: 2px solid #444; border-radius: 10px; background: #2a1f3d; color: #fff; font-size: 16px; box-sizing: border-box; outline: none;"
+			/>
+		</div>
+		
+		<div style="margin: 20px 0;">
+			<label style="display: block; color: #fff; margin-bottom: 8px; font-weight: 500;">Ticker Symbol:</label>
+			<input 
+				type="text" 
+				id="tokenTicker" 
+				placeholder="Enter ticker"
+				style="width: 100%; padding: 12px; border: 2px solid #444; border-radius: 10px; background: #2a1f3d; color: #fff; font-size: 16px; box-sizing: border-box; outline: none;"
+			/>
+		</div>
 		
 		<div id="statusMessage"></div>
 		
