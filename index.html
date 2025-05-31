@@ -605,19 +605,30 @@ function createInitializeMintInstruction(mint, decimals, mintAuthority, freezeAu
 		{ pubkey: new solanaWeb3.PublicKey('SysvarRent111111111111111111111111111111111'), isSigner: false, isWritable: false }
 	];
 	
-	const data = Buffer.alloc(67);
-	data.writeUInt8(0, 0); // InitializeMint instruction
-	data.writeUInt8(decimals, 1);
-	mintAuthority.toBuffer().copy(data, 2);
-	data.writeUInt8(freezeAuthority ? 1 : 0, 34);
+	// Create instruction data using Uint8Array (browser compatible)
+	const data = new Uint8Array(67);
+	data[0] = 0; // InitializeMint instruction
+	data[1] = decimals;
+	
+	// Copy mint authority (32 bytes)
+	const mintAuthorityBytes = mintAuthority.toBytes();
+	for (let i = 0; i < 32; i++) {
+		data[2 + i] = mintAuthorityBytes[i];
+	}
+	
+	// Freeze authority option
+	data[34] = freezeAuthority ? 1 : 0;
 	if (freezeAuthority) {
-		freezeAuthority.toBuffer().copy(data, 35);
+		const freezeAuthorityBytes = freezeAuthority.toBytes();
+		for (let i = 0; i < 32; i++) {
+			data[35 + i] = freezeAuthorityBytes[i];
+		}
 	}
 	
 	return new solanaWeb3.TransactionInstruction({
 		keys,
 		programId: new solanaWeb3.PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA'),
-		data
+		data: Buffer.from(data)
 	});
 }
 
@@ -647,7 +658,7 @@ function createAssociatedTokenAccountInstruction(payer, associatedToken, owner, 
 	return new solanaWeb3.TransactionInstruction({
 		keys,
 		programId: new solanaWeb3.PublicKey('ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL'),
-		data: Buffer.alloc(0)
+		data: new Uint8Array(0) // Empty data for ATA creation
 	});
 }
 
@@ -658,14 +669,27 @@ function createMintToInstruction(mint, destination, authority, amount) {
 		{ pubkey: authority, isSigner: true, isWritable: false }
 	];
 	
-	const data = Buffer.alloc(9);
-	data.writeUInt8(7, 0); // MintTo instruction
-	data.writeBigUInt64LE(amount, 1);
+	// Create instruction data using Uint8Array
+	const data = new Uint8Array(9);
+	data[0] = 7; // MintTo instruction
+	
+	// Convert BigInt to little-endian bytes
+	const amountBytes = new Uint8Array(8);
+	let tempAmount = amount;
+	for (let i = 0; i < 8; i++) {
+		amountBytes[i] = Number(tempAmount & 0xFFn);
+		tempAmount = tempAmount >> 8n;
+	}
+	
+	// Copy amount bytes
+	for (let i = 0; i < 8; i++) {
+		data[1 + i] = amountBytes[i];
+	}
 	
 	return new solanaWeb3.TransactionInstruction({
 		keys,
 		programId: new solanaWeb3.PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA'),
-		data
+		data: Buffer.from(data)
 	});
 }
 
