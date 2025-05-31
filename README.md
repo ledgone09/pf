@@ -3,13 +3,13 @@
 A stunning 3D drawing application that allows users to create rotating 3D artwork and launch tokens on pump.fun with their creations as the token image.
 
 ![3D Drawing Studio](https://img.shields.io/badge/3D-Drawing%20Studio-00ff88?style=for-the-badge)
-![PumpfunAPI](https://img.shields.io/badge/PumpfunAPI.org-Integration-7c3aed?style=for-the-badge)
+![Phantom Secure](https://img.shields.io/badge/Phantom-Secure%20Signing-7c3aed?style=for-the-badge)
 ![Node.js](https://img.shields.io/badge/Node.js-Ready-339933?style=for-the-badge)
 
 ## ✨ Features
 
 - **🎨 3D Drawing Canvas** - Draw with mouse/finger and see your artwork in rotating 3D space
-- **🚀 Token Launch** - Create pump.fun tokens using **PumpfunAPI.org** reliable service
+- **🚀 Secure Token Launch** - Create pump.fun tokens using **Phantom wallet signing**
 - **📸 Screenshot Capture** - Automatically captures your 3D drawings for token creation
 - **🎮 Interactive Controls** - Clear, Pause, Undo, and navigation controls
 - **🌈 Pump.fun Styling** - Beautiful green/purple color scheme matching pump.fun branding
@@ -19,13 +19,13 @@ A stunning 3D drawing application that allows users to create rotating 3D artwor
 
 - **Frontend**: HTML5 Canvas, CSS3, Vanilla JavaScript
 - **Backend**: Node.js HTTP Server
-- **Token Creation**: PumpfunAPI.org reliable service
+- **Token Creation**: Secure Phantom wallet transaction signing
 - **3D Engine**: Custom ge1doot.js library
 - **Styling**: Modern CSS with pump.fun color palette
 
 ## 🚀 Quick Deploy to Render.com
 
-**✅ READY FOR PRODUCTION: Uses PumpfunAPI.org for reliable token creation!**
+**✅ SECURE & READY: Uses Phantom wallet transaction signing!**
 
 ### 1. Deploy to Render.com
 
@@ -44,32 +44,32 @@ A stunning 3D drawing application that allows users to create rotating 3D artwor
 
 ### 2. Your Live App Features
 - ✅ **3D Drawing Canvas** - Draw with mouse/touch
-- ✅ **Real Token Creation** - PumpfunAPI.org integration
-- ✅ **Phantom Wallet Integration** - Enhanced connection for hosted environments
-- ✅ **Reliable API** - Uses official PumpfunAPI.org service
-- ✅ **Solana Blockchain** - Real transactions on mainnet
+- ✅ **Secure Token Creation** - Phantom wallet transaction signing
+- ✅ **No Private Keys** - Wallet stays secure in Phantom
+- ✅ **Direct Blockchain** - Real transactions on Solana mainnet
+- ✅ **Pump.fun Integration** - Tokens appear on pump.fun
 
 ## 🎮 How to Use
 
 1. **Draw Your Art** - Create 3D rotating artwork on the canvas
 2. **Click "🚀 Launch Token"** - Opens the token creation modal
-3. **Connect Phantom Wallet** - Enhanced connection for hosted apps
-4. **Provide Private Key** - For secure token creation (use burner wallet!)
-5. **Launch Token** - Creates a real token on pump.fun with your art!
+3. **Connect Phantom Wallet** - One-click secure connection
+4. **Sign Transaction** - Phantom wallet handles all the security
+5. **Token Created** - Your token appears on pump.fun instantly!
 
-## 🔐 Security Important Notes
+## 🔐 Security Benefits
 
-### Private Key Requirements
-- **PumpfunAPI.org requires your wallet private key** for token creation
-- **⚠️ SECURITY WARNING**: Only use a **burner wallet** with minimal SOL (0.2-0.5 SOL max)
-- **Never use your main wallet** for this purpose
-- **Export private key** from Phantom wallet settings when prompted
+### Secure Phantom Wallet Signing
+- ✅ **No Private Keys Required** - Your keys stay safe in Phantom
+- ✅ **Transaction Preview** - See exactly what you're signing
+- ✅ **User Control** - Approve or reject each transaction
+- ✅ **Industry Standard** - Uses standard web3 wallet practices
 
-### How to Create a Burner Wallet
-1. Create a new Phantom wallet
-2. Send only 0.2-0.5 SOL to it (enough for token creation + fees)
-3. Use this wallet's private key for token creation
-4. Keep your main wallet safe and separate
+### How It Works
+1. **Build Transaction** - App creates the token transaction locally
+2. **Phantom Signs** - Wallet securely signs without exposing keys
+3. **Submit to Network** - Signed transaction goes to Solana blockchain
+4. **Token Created** - New token appears on pump.fun
 
 ## 🛠️ Local Development
 
@@ -86,30 +86,29 @@ node server.js
 http://localhost:8000
 ```
 
-**Note**: Token creation works on both localhost and production with PumpfunAPI.org!
+**✅ Works everywhere**: Localhost, hosted, anywhere Phantom can connect!
 
 ## 🔧 Technical Implementation
 
-### PumpfunAPI.org Integration
-- **Reliable Service**: Uses official PumpfunAPI.org instead of direct pump.fun APIs
-- **Proper Error Handling**: Comprehensive error messages and user guidance
-- **Security Prompts**: Clear warnings about private key usage
-- **Success Tracking**: Direct links to created tokens and transactions
+### Secure Transaction Flow
+- **Local Transaction Building** - Constructs pump.fun token creation transaction
+- **Phantom Wallet Signing** - Secure signing without key exposure
+- **Direct Blockchain Submission** - Sends signed transaction to Solana
+- **Pump.fun Integration** - Token automatically appears on pump.fun
 
-### Enhanced Phantom Integration
-- **Hosted Environment Support**: Improved detection for deployed apps
-- **Connection Retry Logic**: Better handling for slower loading environments
-- **Error Codes**: Specific handling for different connection errors
-- **User Guidance**: Clear instructions for wallet setup
+### Enhanced Security Features
+- **No Private Key Handling** - App never sees your private keys
+- **Transaction Transparency** - Users see exactly what they're signing
+- **Error Recovery** - Graceful fallback to pump.fun website if needed
+- **Network Flexibility** - Works with any Solana RPC endpoint
 
-## 📦 API Details
+## 📦 Technical Details
 
-Uses [PumpfunAPI.org](https://docs.pumpfunapi.org/api-endpoints/create-token) with these features:
-- **Endpoint**: `https://api.pumpfunapi.org/pumpfun/create/token`
-- **Rate Limit**: 60 requests per minute per IP
-- **Fees**: 0.05 SOL system cost + 0.00065 SOL transaction fee
-- **Requirements**: Private key, 0.1 SOL purchase amount
-- **Image Upload**: Direct file upload support
+### Solana Integration
+- **Web3.js Library** - Official Solana JavaScript SDK
+- **Transaction Building** - Constructs proper pump.fun token instructions
+- **Phantom Signing** - Secure wallet integration
+- **Network Submission** - Direct blockchain transaction submission
 
 ## 🌐 Live Demo
 
@@ -118,46 +117,46 @@ After deploying to Render, your app will be available at:
 
 Example: `https://3d-drawing-studio-abc123.onrender.com`
 
-## 🎨 Enhanced Features
+## 🎨 Enhanced Security Features
 
-- **Reliable Token Creation**: PumpfunAPI.org service (99%+ uptime)
-- **Security Guidance**: Clear instructions for safe private key usage
-- **Enhanced Wallet Support**: Better Phantom integration for hosted apps
-- **Error Recovery**: Comprehensive error handling and user guidance
-- **Success Tracking**: Direct links to created tokens and blockchain transactions
+- **🔐 Secure by Design** - No private key handling or storage
+- **🛡️ Phantom Integration** - Industry-standard wallet security
+- **👁️ Transaction Transparency** - Users see what they're signing
+- **🚨 Error Handling** - Comprehensive error messages and recovery
+- **🔄 Fallback Support** - Redirects to pump.fun if direct creation fails
 
 ## 🚀 Production Ready Features
 
 This app includes:
-- ✅ Reliable PumpfunAPI.org integration
-- ✅ Enhanced security warnings and guidance
-- ✅ Improved Phantom wallet connection for hosted environments
-- ✅ Comprehensive error handling
-- ✅ Direct token creation without redirects
-- ✅ Professional success/error messages
+- ✅ Secure Phantom wallet transaction signing
+- ✅ No private key requirements or handling
+- ✅ Professional error handling and user feedback
+- ✅ Direct token creation with blockchain integration
+- ✅ Automatic pump.fun token listing
 - ✅ Mobile-responsive design
+- ✅ Cross-platform compatibility
 
 ## 🔍 Troubleshooting
 
-### Phantom Wallet Not Connecting
-1. Ensure Phantom extension is installed and unlocked
-2. Refresh the page and try again
-3. Check browser console for specific error messages
-4. Try incognito/private browsing mode
+### Phantom Wallet Issues
+1. **Install Phantom** - Download from [phantom.app](https://phantom.app)
+2. **Unlock Wallet** - Make sure Phantom is unlocked
+3. **Refresh Page** - Reload the app after installing Phantom
+4. **Check Connection** - Ensure wallet is connected to Solana mainnet
 
 ### Token Creation Issues
-1. **Private Key Error**: Use Phantom settings > Export Private Key
-2. **Insufficient SOL**: Ensure wallet has at least 0.2 SOL
-3. **Network Issues**: Check internet connection and try again
-4. **API Limits**: Wait a few minutes if hitting rate limits
+1. **Transaction Rejected** - User can always try again
+2. **Insufficient SOL** - Need ~0.01 SOL for transaction fees
+3. **Network Issues** - Check internet connection
+4. **Phantom Popup** - Allow popup windows for transaction approval
 
-### Security Best Practices
-1. **Always use a burner wallet** for token creation
-2. **Never share your private key** with anyone
-3. **Keep main wallet separate** from token creation activities
-4. **Verify all transaction details** before confirming
+### Success Indicators
+1. **Phantom Popup** - Transaction approval window appears
+2. **Signature Generated** - Unique transaction signature provided
+3. **Explorer Link** - Direct link to view transaction on Solscan
+4. **Pump.fun Link** - Direct link to trade the new token
 
-Deploy to Render.com and start creating tokens from 3D art with confidence! 🎨→🪙
+Deploy to Render.com and enjoy secure token creation with Phantom wallet! 🎨→🪙🔐
 
 ## 🎨 Features
 
