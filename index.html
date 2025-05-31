@@ -15,15 +15,6 @@
 
 <!-- Solana Web3.js -->
 <script src="https://unpkg.com/@solana/web3.js@latest/lib/index.iife.min.js"></script>
-<!-- Buffer polyfill for browser -->
-<script src="https://unpkg.com/buffer@6.0.3/index.js"></script>
-<script>
-// Initialize Buffer polyfill for browser compatibility
-if (typeof global === 'undefined') {
-    var global = globalThis;
-}
-global.Buffer = buffer.Buffer;
-</script>
 
 <style>
 html {
@@ -598,19 +589,19 @@ async function createTokenDirectly(name, symbol, blob, imageUrl) {
 	}
 }
 
-// Helper functions for SPL Token instructions
+// Helper functions for SPL Token instructions - Browser Native Only
 function createInitializeMintInstruction(mint, decimals, mintAuthority, freezeAuthority) {
 	const keys = [
 		{ pubkey: mint, isSigner: false, isWritable: true },
 		{ pubkey: new solanaWeb3.PublicKey('SysvarRent111111111111111111111111111111111'), isSigner: false, isWritable: false }
 	];
 	
-	// Create instruction data using Uint8Array (browser compatible)
+	// Create instruction data using only Uint8Array (browser native)
 	const data = new Uint8Array(67);
 	data[0] = 0; // InitializeMint instruction
 	data[1] = decimals;
 	
-	// Copy mint authority (32 bytes)
+	// Copy mint authority (32 bytes) - using only browser native methods
 	const mintAuthorityBytes = mintAuthority.toBytes();
 	for (let i = 0; i < 32; i++) {
 		data[2 + i] = mintAuthorityBytes[i];
@@ -628,7 +619,7 @@ function createInitializeMintInstruction(mint, decimals, mintAuthority, freezeAu
 	return new solanaWeb3.TransactionInstruction({
 		keys,
 		programId: new solanaWeb3.PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA'),
-		data: Buffer.from(data)
+		data: data // Direct Uint8Array - no Buffer conversion
 	});
 }
 
@@ -658,7 +649,7 @@ function createAssociatedTokenAccountInstruction(payer, associatedToken, owner, 
 	return new solanaWeb3.TransactionInstruction({
 		keys,
 		programId: new solanaWeb3.PublicKey('ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL'),
-		data: new Uint8Array(0) // Empty data for ATA creation
+		data: new Uint8Array(0) // Empty instruction data
 	});
 }
 
@@ -669,11 +660,11 @@ function createMintToInstruction(mint, destination, authority, amount) {
 		{ pubkey: authority, isSigner: true, isWritable: false }
 	];
 	
-	// Create instruction data using Uint8Array
+	// Create instruction data using only Uint8Array
 	const data = new Uint8Array(9);
 	data[0] = 7; // MintTo instruction
 	
-	// Convert BigInt to little-endian bytes
+	// Convert BigInt to little-endian bytes manually
 	const amountBytes = new Uint8Array(8);
 	let tempAmount = amount;
 	for (let i = 0; i < 8; i++) {
@@ -681,7 +672,7 @@ function createMintToInstruction(mint, destination, authority, amount) {
 		tempAmount = tempAmount >> 8n;
 	}
 	
-	// Copy amount bytes
+	// Copy amount bytes directly
 	for (let i = 0; i < 8; i++) {
 		data[1 + i] = amountBytes[i];
 	}
@@ -689,7 +680,7 @@ function createMintToInstruction(mint, destination, authority, amount) {
 	return new solanaWeb3.TransactionInstruction({
 		keys,
 		programId: new solanaWeb3.PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA'),
-		data: Buffer.from(data)
+		data: data // Direct Uint8Array - no Buffer conversion
 	});
 }
 
