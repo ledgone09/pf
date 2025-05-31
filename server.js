@@ -3,7 +3,8 @@ const fs = require('fs');
 const path = require('path');
 const url = require('url');
 
-const port = 8000;
+// Use environment variable for port, fallback to 8000 for local development
+const port = process.env.PORT || 8000;
 
 // MIME types for different file extensions
 const mimeTypes = {
@@ -107,11 +108,13 @@ const server = http.createServer((req, res) => {
     });
 });
 
-server.listen(port, () => {
+// Bind to all interfaces (0.0.0.0) for cloud deployment
+server.listen(port, '0.0.0.0', () => {
     console.log('🚀 3D Drawing Studio Server Started!');
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    console.log(`🌐 Server running at: http://localhost:${port}`);
+    console.log(`🌐 Server running on port: ${port}`);
     console.log(`📁 Serving files from: ${__dirname}`);
+    console.log(`🔗 Environment: ${process.env.NODE_ENV || 'development'}`);
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     console.log('');
     console.log('✨ Features available:');
@@ -120,16 +123,26 @@ server.listen(port, () => {
     console.log('   • Real-time 3D Rotation');
     console.log('   • Canvas Screenshot Capture');
     console.log('');
-    console.log('🎯 Open your browser and navigate to:');
-    console.log(`   http://localhost:${port}`);
-    console.log('');
-    console.log('Press Ctrl+C to stop the server');
+    if (process.env.NODE_ENV === 'production') {
+        console.log('🎯 Production deployment ready!');
+    } else {
+        console.log('🎯 Local development server:');
+        console.log(`   http://localhost:${port}`);
+    }
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 });
 
 // Handle server shutdown gracefully
 process.on('SIGINT', () => {
     console.log('\n🛑 Shutting down server...');
+    server.close(() => {
+        console.log('✅ Server stopped successfully');
+        process.exit(0);
+    });
+});
+
+process.on('SIGTERM', () => {
+    console.log('\n🛑 Received SIGTERM, shutting down gracefully...');
     server.close(() => {
         console.log('✅ Server stopped successfully');
         process.exit(0);

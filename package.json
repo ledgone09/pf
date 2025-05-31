@@ -1,0 +1,31 @@
+{
+  "name": "3d-drawing-studio",
+  "version": "1.0.0",
+  "description": "3D Drawing Studio with Pump.fun Token Launch Integration",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "3d",
+    "drawing",
+    "canvas",
+    "pump.fun",
+    "token",
+    "crypto",
+    "art"
+  ],
+  "author": "3D Drawing Studio",
+  "license": "MIT",
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "dependencies": {},
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/3d-drawing-studio.git"
+  },
+  "homepage": "https://github.com/yourusername/3d-drawing-studio#readme"
+} 
