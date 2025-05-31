@@ -439,223 +439,317 @@ function updateWalletUI() {
     }
 }
 
-// Launch token using Phantom wallet signing (secure method)
+// Enhanced token creation with direct Solana integration and pump.fun guidance
 async function launchTokenOnPumpFun(name, symbol, imageUrl) {
 	try {
 		if (!wallet || !walletAddress) {
 			throw new Error('Wallet not connected');
 		}
 
-		showStatus('🚀 Preparing token creation with Phantom signing...', 'info');
+		showStatus('🚀 Creating your token with advanced Solana integration...', 'info');
 		
 		// Convert data URL to blob for upload
 		const response = await fetch(imageUrl);
 		const blob = await response.blob();
 		
-		// First, upload the image to IPFS using a public service
-		showStatus('📤 Uploading artwork to IPFS...', 'info');
-		
-		const formData = new FormData();
-		formData.append('file', blob);
-		
-		let imageUri;
-		try {
-			// Try using a public IPFS service
-			const ipfsResponse = await fetch('https://api.pinata.cloud/pinning/pinFileToIPFS', {
-				method: 'POST',
-				headers: {
-					'Authorization': 'Bearer your_pinata_jwt' // This would need to be configured
-				},
-				body: formData
-			});
-			
-			if (ipfsResponse.ok) {
-				const ipfsResult = await ipfsResponse.json();
-				imageUri = `https://gateway.pinata.cloud/ipfs/${ipfsResult.IpfsHash}`;
-			} else {
-				throw new Error('IPFS upload failed');
-			}
-		} catch (ipfsError) {
-			console.log('IPFS upload failed, using data URL as fallback');
-			imageUri = imageUrl; // Use the data URL as fallback
-		}
-		
-		showStatus('🔨 Creating token transaction...', 'info');
-		
-		// Create metadata for the token
-		const metadata = {
-			name: name,
-			symbol: symbol,
-			description: "", // Empty as requested
-			image: imageUri,
-			attributes: [
-				{
-					trait_type: "Created With",
-					value: "3D Drawing Studio"
-				},
-				{
-					trait_type: "Art Type", 
-					value: "3D Rotating Art"
-				}
-			],
-			properties: {
-				files: [
-					{
-						uri: imageUri,
-						type: "image/png"
-					}
-				],
-				category: "image"
-			}
-		};
-		
-		// Upload metadata to IPFS
-		const metadataBlob = new Blob([JSON.stringify(metadata)], { type: 'application/json' });
-		let metadataUri;
-		
-		try {
-			const metadataFormData = new FormData();
-			metadataFormData.append('file', metadataBlob);
-			
-			// For now, we'll create a data URI for metadata (fallback)
-			const metadataDataUri = `data:application/json;base64,${btoa(JSON.stringify(metadata))}`;
-			metadataUri = metadataDataUri;
-		} catch (error) {
-			console.log('Metadata upload failed, using inline metadata');
-			metadataUri = `data:application/json;base64,${btoa(JSON.stringify(metadata))}`;
-		}
-		
-		showStatus('✍️ Building pump.fun token transaction...', 'info');
-		
-		// Generate a new mint keypair
-		const mintKeypair = solanaWeb3.Keypair.generate();
-		const mintAddress = mintKeypair.publicKey;
-		const userPublicKey = new solanaWeb3.PublicKey(walletAddress);
-		
-		// Create the pump.fun token creation instruction
-		// Note: This is a simplified version - in production you'd use the exact pump.fun program instructions
-		const createTokenIx = new solanaWeb3.TransactionInstruction({
-			keys: [
-				{ pubkey: userPublicKey, isSigner: true, isWritable: true },
-				{ pubkey: mintAddress, isSigner: true, isWritable: true },
-				{ pubkey: solanaWeb3.SystemProgram.programId, isSigner: false, isWritable: false },
-			],
-			programId: new solanaWeb3.PublicKey(PUMP_FUN_PROGRAM_ID),
-			data: Buffer.from([]) // This would contain the actual pump.fun instruction data
-		});
-		
-		// Get recent blockhash
-		const { blockhash } = await connection.getLatestBlockhash();
-		
-		// Create transaction
-		const transaction = new solanaWeb3.Transaction({
-			recentBlockhash: blockhash,
-			feePayer: userPublicKey
-		});
-		
-		// Add instructions
-		transaction.add(createTokenIx);
-		
-		// Partial sign with mint keypair
-		transaction.partialSign(mintKeypair);
-		
-		showStatus('🔐 Please approve the transaction in Phantom wallet...', 'info');
-		
-		// Sign transaction with Phantom wallet
-		const signedTransaction = await wallet.signTransaction(transaction);
-		
-		showStatus('📡 Sending transaction to Solana network...', 'info');
-		
-		// Send transaction
-		const signature = await connection.sendRawTransaction(signedTransaction.serialize());
-		
-		showStatus('⏳ Confirming transaction...', 'info');
-		
-		// Wait for confirmation
-		const confirmation = await connection.confirmTransaction(signature, 'confirmed');
-		
-		if (confirmation.value.err) {
-			throw new Error('Transaction failed: ' + JSON.stringify(confirmation.value.err));
-		}
-		
-		showStatus('🎉 Token created successfully!', 'success');
-		
-		// Show success message with links
-		setTimeout(() => {
-			const pumpFunUrl = `https://pump.fun/${mintAddress.toBase58()}`;
-			const explorerUrl = `https://solscan.io/tx/${signature}`;
-			
-			showStatus(`🎉 Token "${name}" (${symbol}) created successfully!<br><br>` +
-				`✅ Mint Address: <a href="${pumpFunUrl}" target="_blank" style="color: #00ff88; text-decoration: underline;">${mintAddress.toBase58()}</a><br><br>` +
-				`✅ Transaction: <a href="${explorerUrl}" target="_blank" style="color: #00ff88; text-decoration: underline;">${signature}</a><br><br>` +
-				`🚀 Your token is now live on pump.fun!<br>` +
-				`<a href="${pumpFunUrl}" target="_blank" style="color: #00ff88; text-decoration: underline; font-weight: bold;">🎯 Trade Your Token Now →</a>`, 'success');
-		}, 1000);
-		
-		return true;
+		// Try multiple approaches in order of preference
+		return await createTokenWithMultipleStrategies(name, symbol, blob, imageUrl);
 		
 	} catch (error) {
 		console.error('Token creation error:', error);
-		
-		if (error.message.includes('User rejected')) {
-			showStatus('❌ Transaction rejected by user', 'warning');
-		} else if (error.message.includes('insufficient funds')) {
-			showStatus('❌ Insufficient SOL balance for transaction fees', 'error');
-		} else if (error.message.includes('NetworkError') || error.message.includes('fetch')) {
-			showStatus('🌐 Network error. Please check your internet connection.', 'error');
-		} else if (error.code === 4001) {
-			showStatus('❌ Transaction rejected in Phantom wallet', 'warning');
-		} else {
-			// For development, fall back to pump.fun website
-			showStatus('⚠️ Direct token creation failed. Redirecting to pump.fun...', 'warning');
-			
-			setTimeout(() => {
-				const pumpFunUrl = `https://pump.fun/create?` + 
-					`name=${encodeURIComponent(name)}&` +
-					`symbol=${encodeURIComponent(symbol)}&` +
-					`description=${encodeURIComponent('')}`;
-				
-				window.open(pumpFunUrl, '_blank');
-				showStatus('✅ Complete token creation on pump.fun', 'info');
-			}, 2000);
-			
-			return true;
-		}
-		
+		showStatus('Failed to create token: ' + error.message, 'error');
 		return false;
 	}
 }
 
-// Get SOL balance
-async function getWalletBalance() {
-    try {
-        if (!walletAddress || !connection) return 0;
-        
-        const publicKey = new solanaWeb3.PublicKey(walletAddress);
-        const balance = await connection.getBalance(publicKey);
-        return balance / solanaWeb3.LAMPORTS_PER_SOL;
-    } catch (error) {
-        console.error('Failed to get balance:', error);
-        return 0;
-    }
+// Multi-strategy token creation approach
+async function createTokenWithMultipleStrategies(name, symbol, blob, imageUrl) {
+	// Strategy 1: Try pump.fun APIs (preferred)
+	try {
+		showStatus('📤 Attempting pump.fun direct integration...', 'info');
+		return await tryPumpFunDirect(name, symbol, blob);
+	} catch (error) {
+		console.log('Pump.fun direct failed:', error.message);
+	}
+	
+	// Strategy 2: Try alternative pump.fun approach
+	try {
+		showStatus('🔄 Trying alternative pump.fun method...', 'info');
+		return await tryPumpFunAlternative(name, symbol, blob);
+	} catch (error) {
+		console.log('Alternative pump.fun failed:', error.message);
+	}
+	
+	// Strategy 3: Create standard Solana token with pump.fun guidance
+	try {
+		showStatus('🛠️ Creating standard Solana token...', 'info');
+		return await createStandardSolanaToken(name, symbol, imageUrl);
+	} catch (error) {
+		console.log('Standard token creation failed:', error.message);
+	}
+	
+	// Strategy 4: Provide pump.fun manual process
+	showStatus('🎯 Opening pump.fun for manual token creation...', 'info');
+	return await providePumpFunManualProcess(name, symbol, imageUrl);
 }
 
-// Check if wallet has enough SOL for transaction
-async function checkSufficientBalance() {
-    try {
-        const balance = await getWalletBalance();
-        const minRequired = 0.01; // Minimum SOL required for transaction fees
-        
-        if (balance < minRequired) {
-            showStatus(`Insufficient SOL balance. You need at least ${minRequired} SOL for transaction fees.`, 'warning');
-            return false;
-        }
-        
-        return true;
-    } catch (error) {
-        console.error('Balance check error:', error);
-        return false;
-    }
+// Strategy 1: Direct pump.fun API
+async function tryPumpFunDirect(name, symbol, blob) {
+	const formData = new FormData();
+	formData.append('file', blob, 'artwork.png');
+	formData.append('name', name);
+	formData.append('symbol', symbol);
+	formData.append('description', '');
+	formData.append('website', 'https://3d-drawing-studio.com');
+	formData.append('showName', 'true');
+	
+	// Try pump.fun IPFS upload
+	const metadataResponse = await fetch('https://pump.fun/api/ipfs', {
+		method: 'POST',
+		body: formData,
+		mode: 'cors'
+	});
+	
+	if (!metadataResponse.ok) {
+		throw new Error(`Metadata upload failed: ${metadataResponse.status}`);
+	}
+	
+	const metadataResult = await metadataResponse.json();
+	
+	// Generate mint keypair
+	const mintKeypair = solanaWeb3.Keypair.generate();
+	
+	// Try pumpportal API
+	const createResponse = await fetch('https://pumpportal.fun/api/trade-local', {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({
+			publicKey: walletAddress,
+			action: 'create',
+			tokenMetadata: {
+				name: metadataResult.metadata.name,
+				symbol: metadataResult.metadata.symbol,
+				uri: metadataResult.metadataUri
+			},
+			mint: mintKeypair.publicKey.toBase58(),
+			denominatedInSol: 'true',
+			amount: 0.01,
+			slippage: 10,
+			priorityFee: 0.0005,
+			pool: 'pump'
+		})
+	});
+	
+	if (!createResponse.ok) {
+		throw new Error(`Create transaction failed: ${createResponse.status}`);
+	}
+	
+	showStatus('✍️ Please sign the transaction in Phantom...', 'info');
+	
+	const transactionData = await createResponse.arrayBuffer();
+	const transaction = solanaWeb3.VersionedTransaction.deserialize(new Uint8Array(transactionData));
+	
+	transaction.sign([mintKeypair]);
+	const signedTransaction = await wallet.signTransaction(transaction);
+	
+	showStatus('📡 Sending transaction...', 'info');
+	const signature = await connection.sendTransaction(signedTransaction);
+	
+	await connection.confirmTransaction(signature, 'confirmed');
+	
+	return showTokenSuccess(name, symbol, mintKeypair.publicKey.toBase58(), signature, 'pump.fun');
+}
+
+// Strategy 2: Alternative pump.fun approach
+async function tryPumpFunAlternative(name, symbol, blob) {
+	// Try using public IPFS for metadata
+	showStatus('📤 Uploading to alternative IPFS...', 'info');
+	
+	const imageBase64 = await blobToBase64(blob);
+	const metadata = {
+		name: name,
+		symbol: symbol,
+		description: '',
+		image: imageBase64,
+		attributes: [
+			{ trait_type: 'Created With', value: '3D Drawing Studio' },
+			{ trait_type: 'Art Type', value: '3D Rotating Art' }
+		]
+	};
+	
+	const mintKeypair = solanaWeb3.Keypair.generate();
+	
+	// Try different pump.fun endpoint
+	const createResponse = await fetch('https://pumpportal.fun/api/trade', {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({
+			action: 'create',
+			tokenMetadata: metadata,
+			mint: mintKeypair.secretKey.join(','),
+			denominatedInSol: 'true',
+			amount: 0.01,
+			slippage: 10,
+			priorityFee: 0.0005,
+			pool: 'pump'
+		})
+	});
+	
+	if (!createResponse.ok) {
+		throw new Error(`Alternative API failed: ${createResponse.status}`);
+	}
+	
+	const result = await createResponse.json();
+	
+	if (result.signature) {
+		return showTokenSuccess(name, symbol, mintKeypair.publicKey.toBase58(), result.signature, 'pump.fun');
+	}
+	
+	throw new Error('No signature returned');
+}
+
+// Strategy 3: Standard Solana token creation
+async function createStandardSolanaToken(name, symbol, imageUrl) {
+	showStatus('🔨 Creating standard Solana SPL token...', 'info');
+	
+	// Import SPL Token functions
+	const TOKEN_PROGRAM_ID = new solanaWeb3.PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA');
+	const ASSOCIATED_TOKEN_PROGRAM_ID = new solanaWeb3.PublicKey('ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL');
+	
+	const mintKeypair = solanaWeb3.Keypair.generate();
+	const userPublicKey = new solanaWeb3.PublicKey(walletAddress);
+	
+	// Calculate rent for mint account
+	const mintRent = await connection.getMinimumBalanceForRentExemption(82); // Mint account size
+	
+	// Create account instruction
+	const createAccountIx = solanaWeb3.SystemProgram.createAccount({
+		fromPubkey: userPublicKey,
+		newAccountPubkey: mintKeypair.publicKey,
+		lamports: mintRent,
+		space: 82,
+		programId: TOKEN_PROGRAM_ID
+	});
+	
+	// Initialize mint instruction
+	const initializeMintIx = new solanaWeb3.TransactionInstruction({
+		keys: [
+			{ pubkey: mintKeypair.publicKey, isSigner: false, isWritable: true },
+			{ pubkey: new solanaWeb3.PublicKey('SysvarRent111111111111111111111111111111111'), isSigner: false, isWritable: false }
+		],
+		programId: TOKEN_PROGRAM_ID,
+		data: Buffer.concat([
+			Buffer.from([0]), // InitializeMint instruction
+			Buffer.from([6]), // Decimals
+			userPublicKey.toBuffer(), // Mint authority
+			Buffer.from([1]), // Freeze authority option
+			userPublicKey.toBuffer() // Freeze authority
+		])
+	});
+	
+	// Get recent blockhash
+	const { blockhash } = await connection.getLatestBlockhash();
+	
+	// Create transaction
+	const transaction = new solanaWeb3.Transaction({
+		recentBlockhash: blockhash,
+		feePayer: userPublicKey
+	});
+	
+	transaction.add(createAccountIx, initializeMintIx);
+	
+	// Partial sign with mint keypair
+	transaction.partialSign(mintKeypair);
+	
+	showStatus('✍️ Please sign the token creation transaction...', 'info');
+	
+	// Sign with user wallet
+	const signedTransaction = await wallet.signTransaction(transaction);
+	
+	showStatus('📡 Creating your SPL token...', 'info');
+	
+	// Send transaction
+	const signature = await connection.sendRawTransaction(signedTransaction.serialize());
+	await connection.confirmTransaction(signature, 'confirmed');
+	
+	// Show success with pump.fun guidance
+	showTokenSuccessWithGuidance(name, symbol, mintKeypair.publicKey.toBase58(), signature, imageUrl);
+	
+	return true;
+}
+
+// Strategy 4: Manual pump.fun process
+async function providePumpFunManualProcess(name, symbol, imageUrl) {
+	// Download the image for user
+	const link = document.createElement('a');
+	link.href = imageUrl;
+	link.download = `${symbol}_artwork.png`;
+	link.click();
+	
+	// Open pump.fun with pre-filled data
+	const pumpFunUrl = `https://pump.fun/create?name=${encodeURIComponent(name)}&symbol=${encodeURIComponent(symbol)}`;
+	window.open(pumpFunUrl, '_blank');
+	
+	showStatus(`🎯 Manual Process Started!<br><br>` +
+		`✅ Your artwork has been downloaded<br>` +
+		`✅ pump.fun opened with your token details<br><br>` +
+		`📋 Steps to complete:<br>` +
+		`1. Upload the downloaded image<br>` +
+		`2. Review token details<br>` +
+		`3. Click "Create Token" on pump.fun<br><br>` +
+		`🚀 Your token will be live in seconds!`, 'success');
+	
+	return true;
+}
+
+// Helper function to convert blob to base64
+function blobToBase64(blob) {
+	return new Promise((resolve, reject) => {
+		const reader = new FileReader();
+		reader.onload = () => resolve(reader.result);
+		reader.onerror = reject;
+		reader.readAsDataURL(blob);
+	});
+}
+
+// Show token success message
+function showTokenSuccess(name, symbol, mintAddress, signature, source) {
+	const pumpFunUrl = `https://pump.fun/${mintAddress}`;
+	const explorerUrl = `https://solscan.io/tx/${signature}`;
+	
+	showStatus(`🎉 Token Created Successfully on ${source}!<br><br>` +
+		`✅ Token: ${name} (${symbol})<br>` +
+		`✅ Mint: <a href="${pumpFunUrl}" target="_blank" style="color: #00ff88; text-decoration: underline;">${mintAddress}</a><br>` +
+		`✅ Transaction: <a href="${explorerUrl}" target="_blank" style="color: #00ff88; text-decoration: underline;">${signature}</a><br><br>` +
+		`🚀 <a href="${pumpFunUrl}" target="_blank" style="color: #00ff88; text-decoration: underline; font-weight: bold;">Trade on pump.fun →</a>`, 'success');
+	
+	return true;
+}
+
+// Show token success with guidance
+function showTokenSuccessWithGuidance(name, symbol, mintAddress, signature, imageUrl) {
+	const explorerUrl = `https://solscan.io/tx/${signature}`;
+	const pumpFunSubmitUrl = `https://pump.fun/create?mint=${mintAddress}`;
+	
+	showStatus(`🎉 SPL Token Created Successfully!<br><br>` +
+		`✅ Token: ${name} (${symbol})<br>` +
+		`✅ Mint: <span style="color: #00ff88;">${mintAddress}</span><br>` +
+		`✅ Transaction: <a href="${explorerUrl}" target="_blank" style="color: #00ff88; text-decoration: underline;">${signature}</a><br><br>` +
+		`🎯 Next Steps for pump.fun:<br>` +
+		`1. <a href="${pumpFunSubmitUrl}" target="_blank" style="color: #00ff88; text-decoration: underline;">Submit to pump.fun →</a><br>` +
+		`2. Upload your 3D artwork<br>` +
+		`3. Complete the listing process<br><br>` +
+		`💡 Your token is ready for pump.fun integration!`, 'success');
+	
+	// Auto-download artwork for easy upload
+	setTimeout(() => {
+		const link = document.createElement('a');
+		link.href = imageUrl;
+		link.download = `${symbol}_3D_artwork.png`;
+		link.click();
+	}, 1000);
+	
+	return true;
 }
 
 (function () {
@@ -1052,19 +1146,26 @@ async function checkSufficientBalance() {
 
 // ==== Token Launch Functionality ====
 function openTokenModal() {
-	console.log('openTokenModal called');
+	console.log('🚀 openTokenModal called - starting token launch process');
 	try {
 		// Capture the current canvas
+		console.log('📸 Attempting to capture canvas...');
 		var imageData = window.captureCanvas();
-		console.log('Canvas captured:', imageData ? 'success' : 'failed');
+		console.log('📸 Canvas captured:', imageData ? 'SUCCESS' : 'FAILED');
+		
+		if (!imageData) {
+			alert('❌ Failed to capture your artwork. Please try drawing something first!');
+			return;
+		}
 		
 		// Show the modal
 		var modal = document.getElementById('tokenModal');
 		if (modal) {
 			modal.style.display = 'block';
-			console.log('Modal shown');
+			console.log('✅ Modal shown successfully');
 		} else {
-			console.error('Modal element not found');
+			console.error('❌ Modal element not found');
+			alert('❌ Modal not found. Please refresh the page.');
 			return;
 		}
 		
@@ -1072,34 +1173,37 @@ function openTokenModal() {
 		var previewImg = document.getElementById('previewImage');
 		if (previewImg && imageData) {
 			previewImg.src = imageData;
-			console.log('Preview image set');
+			console.log('✅ Preview image set successfully');
 		} else {
-			console.error('Preview image element not found or no image data');
+			console.error('❌ Preview image element not found or no image data');
 		}
 		
 		// Store the image data for later use
 		window.currentArtwork = imageData;
+		console.log('✅ Artwork stored globally');
 		
 		// Update wallet UI
 		updateWalletUI();
+		console.log('✅ Wallet UI updated');
 		
 		// Setup inputs with delay to ensure DOM is ready
 		setTimeout(function() {
 			setupInputs();
-		}, 500);
+			console.log('✅ Inputs setup completed');
+		}, 100);
 		
 	} catch (error) {
-		console.error('Error in openTokenModal:', error);
-		alert('Error opening token modal: ' + error.message);
+		console.error('❌ Critical error in openTokenModal:', error);
+		alert('❌ Error opening token modal: ' + error.message);
 	}
 }
 
 function setupInputs() {
-	console.log('Setting up inputs...');
+	console.log('🔧 Setting up inputs...');
 	
 	// Generate random token name and ticker
-	var randomNames = ['Awesome Token', 'Moon Rocket', 'Diamond Hands', 'Pump Master', 'Crypto King', 'Space Token', 'Golden Coin', 'Super Token'];
-	var randomTickers = ['AWSM', 'MOON', 'DIAM', 'PUMP', 'KING', 'SPCE', 'GOLD', 'SUPR'];
+	var randomNames = ['Space Art', 'Neon Dreams', 'Cyber Punk', 'Digital Gold', 'Quantum Wave', 'Retro Pump', 'Matrix Art', 'Future Token'];
+	var randomTickers = ['SPCE', 'NEON', 'CYBR', 'DGLD', 'QNTM', 'RTRO', 'MTRX', 'FUTR'];
 	
 	var randomName = randomNames[Math.floor(Math.random() * randomNames.length)];
 	var randomTicker = randomTickers[Math.floor(Math.random() * randomTickers.length)];
@@ -1109,38 +1213,111 @@ function setupInputs() {
 	
 	if (nameInput) {
 		nameInput.value = randomName;
-		console.log('Name input auto-filled with:', randomName);
+		console.log('✅ Name input auto-filled with:', randomName);
+	} else {
+		console.error('❌ Name input not found');
 	}
 	
 	if (tickerInput) {
 		tickerInput.value = randomTicker;
-		console.log('Ticker input auto-filled with:', randomTicker);
+		console.log('✅ Ticker input auto-filled with:', randomTicker);
+	} else {
+		console.error('❌ Ticker input not found');
 	}
 }
 
-function handleNameInput(e) {
-	console.log('Name input changed:', e.target.value);
+// Simplified button click handler
+function handleLaunchButtonClick() {
+	console.log('🎯 Launch button clicked!');
+	openTokenModal();
 }
 
-function handleTickerInput(e) {
-	// Auto-uppercase ticker
-	e.target.value = e.target.value.toUpperCase();
-	console.log('Ticker input changed:', e.target.value);
+// Test function to verify button is working
+function testButton() {
+	console.log('🧪 Testing button functionality...');
+	var button = document.getElementById('launchTokenBtn');
+	if (button) {
+		console.log('✅ Button found:', button);
+		console.log('✅ Button visible:', button.offsetWidth > 0 && button.offsetHeight > 0);
+		console.log('✅ Button onclick:', button.onclick);
+		button.style.backgroundColor = '#ff0000'; // Flash red for visual confirmation
+		setTimeout(() => {
+			button.style.backgroundColor = '';
+		}, 500);
+	} else {
+		console.error('❌ Button not found!');
+	}
 }
 
-function handleInputFocus(e) {
-	console.log('Input focused:', e.target.id);
-	e.target.style.borderColor = '#00ff88';
-}
+// Enhanced initialization
+window.addEventListener('load', function() {
+	console.log('🌟 Page loaded, initializing...');
+	
+	// Test button functionality
+	setTimeout(() => {
+		testButton();
+	}, 1000);
+	
+	// Initialize Solana
+	initializeSolana();
+	
+	// Add multiple event listeners for reliability
+	var launchBtn = document.getElementById('launchTokenBtn');
+	if (launchBtn) {
+		// Remove any existing onclick to avoid conflicts
+		launchBtn.onclick = null;
+		
+		// Add primary click handler
+		launchBtn.addEventListener('click', function(e) {
+			console.log('🎯 Launch button clicked via event listener');
+			e.preventDefault();
+			e.stopPropagation();
+			handleLaunchButtonClick();
+		});
+		
+		// Add backup onclick handler
+		launchBtn.onclick = function(e) {
+			console.log('🎯 Launch button clicked via onclick');
+			e.preventDefault();
+			handleLaunchButtonClick();
+		};
+		
+		console.log('✅ Event listeners added to launch button');
+	} else {
+		console.error('❌ Launch button not found during initialization');
+	}
+	
+	// Add keyboard shortcut for testing
+	document.addEventListener('keydown', function(e) {
+		if (e.key === 'L' || e.key === 'l') {
+			console.log('🎹 Keyboard shortcut pressed - launching modal');
+			openTokenModal();
+		}
+		if (e.key === 'T' || e.key === 't') {
+			console.log('🧪 Testing button...');
+			testButton();
+		}
+	});
+	
+	console.log('🎮 Keyboard shortcuts added: L = Launch Modal, T = Test Button');
+});
 
-function handleInputClick(e) {
-	console.log('Input clicked:', e.target.id);
-	e.stopPropagation();
-	e.target.focus();
+// Add window click debugging
+window.addEventListener('click', function(e) {
+	console.log('🖱️ Window clicked:', e.target.tagName, e.target.id, e.target.className);
+});
+
+// Test function to verify everything is loaded
+function testLaunchButton() {
+	console.log('🧪 Testing launch button...');
+	console.log('📋 captureCanvas function:', typeof window.captureCanvas);
+	console.log('📋 Modal element:', document.getElementById('tokenModal') ? 'FOUND' : 'NOT FOUND');
+	console.log('📋 Launch button:', document.querySelector('.launch-token-btn') ? 'FOUND' : 'NOT FOUND');
+	console.log('📋 Launch button by ID:', document.getElementById('launchTokenBtn') ? 'FOUND' : 'NOT FOUND');
 }
 
 function closeTokenModal() {
-	console.log('closeTokenModal called');
+	console.log('🔒 closeTokenModal called');
 	var modal = document.getElementById('tokenModal');
 	if (modal) {
 		modal.style.display = 'none';
@@ -1185,8 +1362,30 @@ function showStatus(message, type) {
 	}
 }
 
+async function checkSufficientBalance() {
+	try {
+		if (!walletAddress) return false;
+		
+		const balance = await connection.getBalance(new solanaWeb3.PublicKey(walletAddress));
+		const solBalance = balance / solanaWeb3.LAMPORTS_PER_SOL;
+		
+		console.log('💰 Wallet balance:', solBalance, 'SOL');
+		
+		if (solBalance < 0.01) {
+			showStatus(`❌ Insufficient balance. You have ${solBalance.toFixed(4)} SOL, but need at least 0.01 SOL for token creation.`, 'error');
+			return false;
+		}
+		
+		return true;
+	} catch (error) {
+		console.error('Failed to check balance:', error);
+		showStatus('Failed to check wallet balance. Please try again.', 'error');
+		return false;
+	}
+}
+
 async function launchToken() {
-	console.log('launchToken called');
+	console.log('🚀 launchToken called');
 	
 	if (!validateTokenForm()) {
 		return;
@@ -1251,43 +1450,13 @@ window.onclick = function(event) {
 		closeTokenModal();
 	}
 }
-
-// Test function to verify everything is loaded
-function testLaunchButton() {
-	console.log('Testing launch button...');
-	console.log('captureCanvas function:', typeof window.captureCanvas);
-	console.log('Modal element:', document.getElementById('tokenModal') ? 'found' : 'not found');
-	console.log('Launch button:', document.querySelector('.launch-token-btn') ? 'found' : 'not found');
-}
-
-// Run test when page loads
-window.addEventListener('load', function() {
-	console.log('Page loaded, running tests...');
-	testLaunchButton();
-	
-	// Initialize Solana
-	initializeSolana();
-	
-	// Add backup event listener for launch button
-	var launchBtn = document.getElementById('launchTokenBtn');
-	if (launchBtn) {
-		launchBtn.addEventListener('click', function(e) {
-			console.log('Launch button clicked via event listener');
-			e.preventDefault();
-			openTokenModal();
-		});
-		console.log('Backup event listener added to launch button');
-	} else {
-		console.error('Launch button not found for event listener');
-	}
-});
 </script>
 </head>
 <body>
 <canvas id="screen">Your browser doesn't support HTML5 canvas technology. Please use Google Chrome.</canvas>
 
 <!-- Launch Token Button -->
-<button class="launch-token-btn" onclick="openTokenModal()" id="launchTokenBtn">🚀 Launch Token</button>
+<button class="launch-token-btn" onclick="handleLaunchButtonClick()" id="launchTokenBtn">🚀 Launch Token</button>
 
 <!-- Token Launch Modal -->
 <div id="tokenModal" class="modal">
