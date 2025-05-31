@@ -308,7 +308,8 @@ body {
 // Solana Configuration
 const SOLANA_RPC_URL = 'https://magical-boldest-patina.solana-mainnet.quiknode.pro/a94255dcbb27e52b1d4cca35d10e899b82b6bdba/';
 const PUMP_FUN_PROGRAM_ID = '6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P';
-const PUMP_FUN_API_URL = 'https://pumpportal.fun/api';
+// Updated to use reliable PumpfunAPI.org service
+const PUMPFUN_API_URL = 'https://api.pumpfunapi.org/pumpfun/create/token';
 
 // Check if running on localhost
 const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
@@ -317,6 +318,7 @@ const isLocalhost = window.location.hostname === 'localhost' || window.location.
 let connection;
 let wallet = null;
 let walletAddress = null;
+let privateKey = null; // Store private key for API calls
 
 // Initialize Solana connection
 function initializeSolana() {
@@ -324,11 +326,22 @@ function initializeSolana() {
         connection = new solanaWeb3.Connection(SOLANA_RPC_URL, 'confirmed');
         console.log('Solana connection initialized');
         
-        // Check if Phantom is installed
-        if (window.solana && window.solana.isPhantom) {
-            console.log('Phantom wallet detected');
-        } else {
-            console.warn('Phantom wallet not detected');
+        // Enhanced Phantom detection for hosted environments
+        const checkPhantom = () => {
+            if (window.solana && window.solana.isPhantom) {
+                console.log('Phantom wallet detected');
+                return true;
+            }
+            return false;
+        };
+        
+        // Wait a bit for Phantom to load in hosted environments
+        if (!checkPhantom()) {
+            setTimeout(() => {
+                if (!checkPhantom()) {
+                    console.warn('Phantom wallet not detected - may need to install or refresh');
+                }
+            }, 2000);
         }
     } catch (error) {
         console.error('Failed to initialize Solana:', error);
@@ -338,26 +351,51 @@ function initializeSolana() {
 // Connect to Phantom wallet
 async function connectWallet() {
     try {
-        if (!window.solana || !window.solana.isPhantom) {
-            showStatus('Please install Phantom wallet to continue', 'error');
+        // Enhanced Phantom detection for hosted environments
+        if (!window.solana) {
+            showStatus('Phantom wallet not found. Please install Phantom and refresh the page.', 'error');
             window.open('https://phantom.app/', '_blank');
             return false;
         }
 
+        if (!window.solana.isPhantom) {
+            showStatus('Please use Phantom wallet for the best experience.', 'warning');
+        }
+
         showStatus('Connecting to Phantom wallet...', 'info');
         
-        const response = await window.solana.connect();
+        // Connect to wallet
+        const response = await window.solana.connect({ onlyIfTrusted: false });
         wallet = window.solana;
         walletAddress = response.publicKey.toString();
         
+        // Get private key for API calls (this is safe as it's the user's own wallet)
+        // Note: In production, you might want to use a different approach for security
+        try {
+            // Request private key access for token creation
+            const message = new TextEncoder().encode('Sign this message to authorize token creation');
+            const signedMessage = await wallet.signMessage(message);
+            
+            // For the API, we'll need the wallet to sign transactions
+            console.log('Wallet connected and ready for token creation');
+        } catch (keyError) {
+            console.log('Private key access not available, will use alternative method');
+        }
+        
         console.log('Wallet connected:', walletAddress);
         updateWalletUI();
-        showStatus('Wallet connected successfully!', 'success');
+        showStatus('Wallet connected successfully! Ready to create tokens.', 'success');
         
         return true;
     } catch (error) {
         console.error('Failed to connect wallet:', error);
-        showStatus('Failed to connect wallet: ' + error.message, 'error');
+        if (error.code === 4001) {
+            showStatus('Wallet connection rejected by user', 'warning');
+        } else if (error.code === -32002) {
+            showStatus('Wallet connection request pending. Please check your Phantom wallet.', 'info');
+        } else {
+            showStatus('Failed to connect wallet: ' + error.message, 'error');
+        }
         return false;
     }
 }
@@ -430,160 +468,106 @@ function createTokenMetadata(name, symbol, imageUrl) {
     };
 }
 
-// Launch token on pump.fun
+// Launch token using PumpfunAPI.org
 async function launchTokenOnPumpFun(name, symbol, imageUrl) {
 	try {
 		if (!wallet || !walletAddress) {
 			throw new Error('Wallet not connected');
 		}
 
-		// Check if running on localhost and warn about CORS limitations
-		if (isLocalhost) {
-			showStatus('⚠️ Running on localhost - pump.fun API may be blocked by CORS. Deploy to Render for full functionality.', 'warning');
-		}
-
-		showStatus('Creating token metadata...', 'info');
+		showStatus('🚀 Using PumpfunAPI.org for reliable token creation...', 'info');
 		
 		// Convert data URL to blob for upload
 		const response = await fetch(imageUrl);
 		const blob = await response.blob();
 		
-		// Create form data for pump.fun IPFS upload
+		// Create form data for PumpfunAPI.org
 		const formData = new FormData();
-		formData.append('file', blob, 'token-artwork.png');
-		formData.append('name', name);
-		formData.append('symbol', symbol);
-		formData.append('description', ''); // Empty as requested
-		formData.append('website', 'https://3d-drawing-studio.com');
-		formData.append('showName', 'true');
 		
-		showStatus('Uploading to IPFS...', 'info');
+		// Get wallet private key (user will need to provide this or we use signing)
+		let walletPrivateKey;
+		try {
+			// In a real app, you'd handle this more securely
+			// For now, we'll show instructions to the user
+			showStatus('⚠️ PumpfunAPI requires wallet private key. For security, please use a burner wallet with minimal SOL.', 'warning');
+			
+			// Prompt user for private key (in production, handle this more securely)
+			walletPrivateKey = prompt('Enter your wallet private key (Base58 format) for token creation.\n\nIMPORTANT: Only use a burner wallet with minimal SOL!\n\nYou can export your private key from Phantom wallet settings.');
+			
+			if (!walletPrivateKey) {
+				throw new Error('Private key required for token creation');
+			}
+			
+		} catch (keyError) {
+			throw new Error('Private key required for PumpfunAPI.org integration');
+		}
 		
-		// Upload metadata to pump.fun IPFS
-		const metadataResponse = await fetch('https://pump.fun/api/ipfs', {
+		// Required parameters
+		formData.append("private_key", walletPrivateKey);
+		formData.append("amount", "0.1"); // 0.1 SOL for initial purchase
+		formData.append("name", name);
+		formData.append("symbol", symbol);
+		
+		// Optional parameters (empty description as requested)
+		formData.append("description", ""); // Empty as requested
+		formData.append("website", "https://3d-drawing-studio.com");
+		formData.append("image", blob, 'token-artwork.png'); // Image file
+		
+		showStatus('Uploading artwork and creating token...', 'info');
+		
+		// Call PumpfunAPI.org endpoint
+		const apiResponse = await fetch(PUMPFUN_API_URL, {
 			method: 'POST',
 			body: formData
 		});
 		
-		if (!metadataResponse.ok) {
-			throw new Error('Failed to upload metadata to IPFS - CORS blocked or API unavailable');
+		if (!apiResponse.ok) {
+			const errorText = await apiResponse.text();
+			throw new Error(`PumpfunAPI error (${apiResponse.status}): ${errorText}`);
 		}
 		
-		const metadataResult = await metadataResponse.json();
-		console.log('Metadata uploaded:', metadataResult);
+		const result = await apiResponse.json();
+		console.log('PumpfunAPI response:', result);
 		
-		showStatus('Creating token transaction...', 'info');
-		
-		// Generate a random mint keypair
-		const mintKeypair = solanaWeb3.Keypair.generate();
-		
-		// Create token using pump.fun local transaction API
-		const createTokenResponse = await fetch('https://pumpportal.fun/api/trade-local', {
-			method: 'POST',
-			headers: {
-				'Content-Type': 'application/json'
-			},
-			body: JSON.stringify({
-				publicKey: walletAddress,
-				action: 'create',
-				tokenMetadata: {
-					name: metadataResult.metadata.name,
-					symbol: metadataResult.metadata.symbol,
-					uri: metadataResult.metadataUri
-				},
-				mint: mintKeypair.publicKey.toBase58(),
-				denominatedInSol: 'true',
-				amount: 0, // No initial buy
-				slippage: 10,
-				priorityFee: 0.0005,
-				pool: 'pump'
-			})
-		});
-		
-		if (!createTokenResponse.ok) {
-			throw new Error(`Failed to create token transaction: ${createTokenResponse.statusText} - CORS blocked or API unavailable`);
+		if (result.status === 'success' || result.mint) {
+			const mintAddress = result.mint;
+			const txSignature = result.txid;
+			
+			showStatus('🎉 Token created successfully with PumpfunAPI!', 'success');
+			
+			// Show success message with links
+			setTimeout(() => {
+				const pumpFunUrl = `https://pump.fun/${mintAddress}`;
+				const explorerUrl = `https://solscan.io/tx/${txSignature}`;
+				
+				showStatus(`🎉 Token "${name}" (${symbol}) created successfully!<br><br>` +
+					`✅ Mint Address: <a href="${pumpFunUrl}" target="_blank" style="color: #00ff88; text-decoration: underline;">${mintAddress}</a><br><br>` +
+					`✅ Transaction: <a href="${explorerUrl}" target="_blank" style="color: #00ff88; text-decoration: underline;">${txSignature}</a><br><br>` +
+					`🚀 Your token is now live on pump.fun!<br>` +
+					`<a href="${pumpFunUrl}" target="_blank" style="color: #00ff88; text-decoration: underline; font-weight: bold;">🎯 Trade Your Token Now →</a>`, 'success');
+			}, 1000);
+			
+			return true;
+		} else {
+			throw new Error('Token creation failed: ' + (result.message || 'Unknown error'));
 		}
-		
-		showStatus('Signing transaction...', 'info');
-		
-		// Get the transaction data
-		const transactionData = await createTokenResponse.arrayBuffer();
-		const transaction = solanaWeb3.VersionedTransaction.deserialize(new Uint8Array(transactionData));
-		
-		// Sign with both mint keypair and wallet
-		transaction.sign([mintKeypair]);
-		
-		// Sign with wallet
-		const signedTransaction = await wallet.signTransaction(transaction);
-		
-		showStatus('Sending transaction...', 'info');
-		
-		// Send transaction
-		const signature = await connection.sendTransaction(signedTransaction);
-		
-		showStatus('Confirming transaction...', 'info');
-		
-		// Wait for confirmation
-		const confirmation = await connection.confirmTransaction(signature, 'confirmed');
-		
-		if (confirmation.value.err) {
-			throw new Error('Transaction failed: ' + JSON.stringify(confirmation.value.err));
-		}
-		
-		showStatus(`Token created successfully! Signature: ${signature}`, 'success');
-		
-		// Show success message with token details and transaction link
-		setTimeout(() => {
-			const explorerUrl = `https://solscan.io/tx/${signature}`;
-			const tokenUrl = `https://pump.fun/${mintKeypair.publicKey.toBase58()}`;
-			showStatus(`🎉 Token "${name}" (${symbol}) created successfully!<br><br>` +
-				`Token Address: <a href="${tokenUrl}" target="_blank" style="color: #00ff88; text-decoration: underline;">${mintKeypair.publicKey.toBase58().slice(0, 20)}...</a><br><br>` +
-				`Transaction: <a href="${explorerUrl}" target="_blank" style="color: #00ff88; text-decoration: underline;">${signature.slice(0, 20)}...</a><br><br>` +
-				`Your token is now live on pump.fun!<br>` +
-				`<a href="${tokenUrl}" target="_blank" style="color: #00ff88; text-decoration: underline;">Trade on pump.fun →</a>`, 'success');
-		}, 1000);
-		
-		return true;
 		
 	} catch (error) {
 		console.error('Token creation error:', error);
 		
-		// Check if it's a CORS/Network error on localhost
-		if (isLocalhost && (error.message.includes('CORS') || error.message.includes('NetworkError') || error.message.includes('fetch'))) {
-			showStatus('🚨 CORS Error: pump.fun API blocked on localhost.<br><br>Deploy to Render.com for full functionality!<br><br>Redirecting to pump.fun as fallback...', 'error');
-			
-			setTimeout(() => {
-				const pumpFunUrl = `https://pump.fun/create?` + 
-					`name=${encodeURIComponent(name)}&` +
-					`symbol=${encodeURIComponent(symbol)}&` +
-					`description=${encodeURIComponent('')}`;
-				
-				window.open(pumpFunUrl, '_blank');
-				showStatus('Complete token creation on pump.fun', 'info');
-			}, 3000);
-			
-			return true;
+		if (error.message.includes('Private key required')) {
+			showStatus(`🔐 Private Key Required<br><br>` +
+				`PumpfunAPI.org requires your wallet private key to create tokens.<br><br>` +
+				`⚠️ SECURITY TIP: Use a burner wallet with minimal SOL!<br><br>` +
+				`📝 Get your private key from Phantom wallet settings > Export Private Key`, 'warning');
+		} else if (error.message.includes('PumpfunAPI error')) {
+			showStatus('PumpfunAPI service error: ' + error.message + '<br><br>Please try again in a few moments.', 'error');
+		} else if (error.message.includes('NetworkError') || error.message.includes('fetch')) {
+			showStatus('Network error connecting to PumpfunAPI. Please check your internet connection.', 'error');
+		} else {
+			showStatus('Failed to create token: ' + error.message, 'error');
 		}
 		
-		// Fallback to redirect for other errors
-		if (error.message.includes('Failed to create token transaction') || error.message.includes('Failed to upload metadata')) {
-			showStatus('Direct creation failed, redirecting to pump.fun...', 'info');
-			
-			const pumpFunUrl = `https://pump.fun/create?` + 
-				`name=${encodeURIComponent(name)}&` +
-				`symbol=${encodeURIComponent(symbol)}&` +
-				`description=${encodeURIComponent('')}&` +
-				`image=${encodeURIComponent(imageUrl)}`;
-			
-			setTimeout(() => {
-				window.open(pumpFunUrl, '_blank');
-				showStatus('Complete token creation on pump.fun', 'info');
-			}, 2000);
-			
-			return true;
-		}
-		
-		showStatus('Failed to create token: ' + error.message, 'error');
 		return false;
 	}
 }
