@@ -12,6 +12,12 @@
 <link rel="stylesheet" href="static/css/slider.css">
 <link rel="shortcut icon" href="/favicon.ico"/>
 <title>3D Drawing Studio - Create Your Rotating 3D Name</title>
+
+<!-- Solana Web3.js -->
+<script src="https://unpkg.com/@solana/web3.js@latest/lib/index.iife.min.js"></script>
+<!-- Buffer polyfill for browser -->
+<script src="https://unpkg.com/buffer@6.0.3/index.js"></script>
+
 <style>
 html {
 	overflow: hidden;
@@ -160,6 +166,51 @@ body {
 	box-shadow: 0 0 20px rgba(0, 255, 136, 0.3);
 }
 
+.wallet-section {
+	margin: 20px 0;
+	padding: 15px;
+	border: 2px solid #7c3aed;
+	border-radius: 10px;
+	background: rgba(124, 58, 237, 0.1);
+}
+
+.wallet-status {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	margin-bottom: 10px;
+}
+
+.wallet-address {
+	font-family: monospace;
+	font-size: 12px;
+	color: #00ff88;
+	word-break: break-all;
+}
+
+.connect-wallet-btn {
+	padding: 10px 20px;
+	background: linear-gradient(135deg, #7c3aed 0%, #5b21b6 100%);
+	color: white;
+	border: none;
+	border-radius: 8px;
+	font-size: 14px;
+	font-weight: bold;
+	cursor: pointer;
+	transition: all 0.3s;
+}
+
+.connect-wallet-btn:hover {
+	background: linear-gradient(135deg, #5b21b6 0%, #4c1d95 100%);
+	transform: translateY(-2px);
+}
+
+.connect-wallet-btn:disabled {
+	background: #666;
+	cursor: not-allowed;
+	transform: none;
+}
+
 .launch-btn {
 	width: 100%;
 	padding: 15px;
@@ -240,6 +291,12 @@ body {
 	border: 1px solid #7c3aed;
 }
 
+.status-warning {
+	background: rgba(255, 193, 7, 0.2);
+	color: #ffc107;
+	border: 1px solid #ffc107;
+}
+
 /* Responsive design */
 @media (max-width: 768px) {
 	.modal-content {
@@ -266,6 +323,245 @@ body {
  * ======================================================= */
  
 "use strict";
+
+// Solana Configuration
+const SOLANA_RPC_URL = 'https://magical-boldest-patina.solana-mainnet.quiknode.pro/a94255dcbb27e52b1d4cca35d10e899b82b6bdba/';
+const PUMP_FUN_PROGRAM_ID = '6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P';
+const PUMP_FUN_API_URL = 'https://pumpportal.fun/api';
+
+// Global Solana variables
+let connection;
+let wallet = null;
+let walletAddress = null;
+
+// Initialize Solana connection
+function initializeSolana() {
+    try {
+        connection = new solanaWeb3.Connection(SOLANA_RPC_URL, 'confirmed');
+        console.log('Solana connection initialized');
+        
+        // Check if Phantom is installed
+        if (window.solana && window.solana.isPhantom) {
+            console.log('Phantom wallet detected');
+        } else {
+            console.warn('Phantom wallet not detected');
+        }
+    } catch (error) {
+        console.error('Failed to initialize Solana:', error);
+    }
+}
+
+// Connect to Phantom wallet
+async function connectWallet() {
+    try {
+        if (!window.solana || !window.solana.isPhantom) {
+            showStatus('Please install Phantom wallet to continue', 'error');
+            window.open('https://phantom.app/', '_blank');
+            return false;
+        }
+
+        showStatus('Connecting to Phantom wallet...', 'info');
+        
+        const response = await window.solana.connect();
+        wallet = window.solana;
+        walletAddress = response.publicKey.toString();
+        
+        console.log('Wallet connected:', walletAddress);
+        updateWalletUI();
+        showStatus('Wallet connected successfully!', 'success');
+        
+        return true;
+    } catch (error) {
+        console.error('Failed to connect wallet:', error);
+        showStatus('Failed to connect wallet: ' + error.message, 'error');
+        return false;
+    }
+}
+
+// Disconnect wallet
+async function disconnectWallet() {
+    try {
+        if (wallet) {
+            await wallet.disconnect();
+        }
+        wallet = null;
+        walletAddress = null;
+        updateWalletUI();
+        showStatus('Wallet disconnected', 'info');
+    } catch (error) {
+        console.error('Failed to disconnect wallet:', error);
+    }
+}
+
+// Update wallet UI
+function updateWalletUI() {
+    const walletStatus = document.getElementById('walletStatus');
+    const walletAddressEl = document.getElementById('walletAddress');
+    const connectBtn = document.getElementById('connectWalletBtn');
+    const launchBtn = document.getElementById('launchBtn');
+    
+    if (walletAddress) {
+        walletStatus.textContent = 'Connected';
+        walletStatus.style.color = '#00ff88';
+        walletAddressEl.textContent = walletAddress.slice(0, 8) + '...' + walletAddress.slice(-8);
+        connectBtn.textContent = 'Disconnect';
+        connectBtn.onclick = disconnectWallet;
+        launchBtn.disabled = false;
+    } else {
+        walletStatus.textContent = 'Not Connected';
+        walletStatus.style.color = '#ff6464';
+        walletAddressEl.textContent = '';
+        connectBtn.textContent = 'Connect Phantom';
+        connectBtn.onclick = connectWallet;
+        launchBtn.disabled = true;
+    }
+}
+
+// Upload image to IPFS (using a public gateway for demo)
+async function uploadImageToIPFS(imageDataUrl) {
+    try {
+        showStatus('Uploading artwork to IPFS...', 'info');
+        
+        // Convert data URL to blob
+        const response = await fetch(imageDataUrl);
+        const blob = await response.blob();
+        
+        // Create form data
+        const formData = new FormData();
+        formData.append('file', blob, 'token-artwork.png');
+        
+        // Upload to a public IPFS service (you might want to use your own)
+        const uploadResponse = await fetch('https://api.pinata.cloud/pinning/pinFileToIPFS', {
+            method: 'POST',
+            headers: {
+                'pinata_api_key': 'your_pinata_api_key', // You'll need to get this
+                'pinata_secret_api_key': 'your_pinata_secret_key'
+            },
+            body: formData
+        });
+        
+        if (!uploadResponse.ok) {
+            // Fallback: use a placeholder or base64 data
+            console.warn('IPFS upload failed, using fallback');
+            return imageDataUrl; // Return the data URL as fallback
+        }
+        
+        const result = await uploadResponse.json();
+        const ipfsUrl = `https://gateway.pinata.cloud/ipfs/${result.IpfsHash}`;
+        
+        console.log('Image uploaded to IPFS:', ipfsUrl);
+        return ipfsUrl;
+    } catch (error) {
+        console.error('IPFS upload error:', error);
+        // Return the original data URL as fallback
+        return imageDataUrl;
+    }
+}
+
+// Create token metadata
+function createTokenMetadata(name, symbol, imageUrl) {
+    return {
+        name: name,
+        symbol: symbol,
+        description: "", // Empty as requested
+        image: imageUrl,
+        attributes: [
+            {
+                trait_type: "Created With",
+                value: "3D Drawing Studio"
+            },
+            {
+                trait_type: "Art Type",
+                value: "3D Rotating Art"
+            }
+        ],
+        properties: {
+            files: [
+                {
+                    uri: imageUrl,
+                    type: "image/png"
+                }
+            ],
+            category: "image"
+        }
+    };
+}
+
+// Launch token on pump.fun
+async function launchTokenOnPumpFun(name, symbol, imageUrl) {
+    try {
+        if (!wallet || !walletAddress) {
+            throw new Error('Wallet not connected');
+        }
+
+        showStatus('Creating token metadata...', 'info');
+        
+        // Create metadata
+        const metadata = createTokenMetadata(name, symbol, imageUrl);
+        
+        showStatus('Preparing token creation transaction...', 'info');
+        
+        // This is a simplified version - in reality, you'd need to:
+        // 1. Upload metadata to IPFS
+        // 2. Create the token mint
+        // 3. Create the pump.fun bonding curve
+        // 4. Initialize the token
+        
+        // For now, we'll simulate the process and redirect to pump.fun
+        const pumpFunUrl = `https://pump.fun/create?` + 
+            `name=${encodeURIComponent(name)}&` +
+            `symbol=${encodeURIComponent(symbol)}&` +
+            `description=${encodeURIComponent('')}&` +
+            `image=${encodeURIComponent(imageUrl)}`;
+        
+        showStatus('Redirecting to pump.fun for final token creation...', 'success');
+        
+        // Open pump.fun in new tab
+        setTimeout(() => {
+            window.open(pumpFunUrl, '_blank');
+            showStatus('Token creation initiated! Complete the process on pump.fun', 'success');
+        }, 2000);
+        
+        return true;
+        
+    } catch (error) {
+        console.error('Token launch error:', error);
+        showStatus('Failed to launch token: ' + error.message, 'error');
+        return false;
+    }
+}
+
+// Get SOL balance
+async function getWalletBalance() {
+    try {
+        if (!walletAddress || !connection) return 0;
+        
+        const publicKey = new solanaWeb3.PublicKey(walletAddress);
+        const balance = await connection.getBalance(publicKey);
+        return balance / solanaWeb3.LAMPORTS_PER_SOL;
+    } catch (error) {
+        console.error('Failed to get balance:', error);
+        return 0;
+    }
+}
+
+// Check if wallet has enough SOL for transaction
+async function checkSufficientBalance() {
+    try {
+        const balance = await getWalletBalance();
+        const minRequired = 0.01; // Minimum SOL required for transaction fees
+        
+        if (balance < minRequired) {
+            showStatus(`Insufficient SOL balance. You need at least ${minRequired} SOL for transaction fees.`, 'warning');
+            return false;
+        }
+        
+        return true;
+    } catch (error) {
+        console.error('Balance check error:', error);
+        return false;
+    }
+}
 
 (function () {
 	// ==== private variables =====
@@ -632,7 +928,7 @@ body {
 	{"points":[{"x":0,"y":100,"z":0},{"x":0,"y":80,"z":0},{"x":0,"y":60,"z":0},{"x":0,"y":40,"z":0},{"x":0,"y":20,"z":0},{"x":0,"y":0,"z":0},{"x":0,"y":-20,"z":0},{"x":0,"y":-40,"z":0},{"x":0,"y":-60,"z":0},{"x":0,"y":-80,"z":0},{"x":0,"y":-100,"z":0}],"length":11,"filled":false,"color":"","fov":640},
 	
 	// M letter
-	{"points":[{"x":40,"y":100,"z":0},{"x":40,"y":80,"z":0},{"x":40,"y":60,"z":0},{"x":40,"y":40,"z":0},{"x":40,"y":20,"z":0},{"x":40,"y":0,"z":0},{"x":40,"y":-20,"z":0},{"x":40,"y":-40,"z":0},{"x":40,"y":-60,"z":0},{"x":40,"y":-80,"z":0},{"x":40,"y":-100,"z":0}],"length":11,"filled":false,"color":"","fov":640},
+	{"points":[{"x":40,"y":100,"z":0},{"x":40,"y":80,"z":0},{"x":40,"y":60,"z":0},{"x":40,"y":20,"z":0},{"x":40,"y":0,"z":0},{"x":40,"y":-20,"z":0},{"x":40,"y":-40,"z":0},{"x":40,"y":-60,"z":0},{"x":40,"y":-80,"z":0},{"x":40,"y":-100,"z":0}],"length":10,"filled":false,"color":"","fov":640},
 	{"points":[{"x":40,"y":-100,"z":0},{"x":50,"y":-90,"z":0},{"x":60,"y":-80,"z":0},{"x":70,"y":-70,"z":0},{"x":80,"y":-60,"z":0},{"x":90,"y":-50,"z":0},{"x":100,"y":-40,"z":0}],"length":7,"filled":false,"color":"","fov":640},
 	{"points":[{"x":100,"y":-40,"z":0},{"x":110,"y":-50,"z":0},{"x":120,"y":-60,"z":0},{"x":130,"y":-70,"z":0},{"x":140,"y":-80,"z":0},{"x":150,"y":-90,"z":0},{"x":160,"y":-100,"z":0}],"length":7,"filled":false,"color":"","fov":640},
 	{"points":[{"x":160,"y":-100,"z":0},{"x":160,"y":-80,"z":0},{"x":160,"y":-60,"z":0},{"x":160,"y":-40,"z":0},{"x":160,"y":-20,"z":0},{"x":160,"y":0,"z":0},{"x":160,"y":20,"z":0},{"x":160,"y":40,"z":0},{"x":160,"y":60,"z":0},{"x":160,"y":80,"z":0},{"x":160,"y":100,"z":0}],"length":11,"filled":false,"color":"","fov":640},
@@ -688,6 +984,9 @@ function openTokenModal() {
 		
 		// Store the image data for later use
 		window.currentArtwork = imageData;
+		
+		// Update wallet UI
+		updateWalletUI();
 		
 		// Simple input setup
 		setTimeout(function() {
@@ -754,9 +1053,21 @@ function showStatus(message, type) {
 	}
 }
 
-function launchToken() {
+async function launchToken() {
 	console.log('launchToken called');
+	
 	if (!validateTokenForm()) {
+		return;
+	}
+	
+	if (!wallet || !walletAddress) {
+		showStatus('Please connect your Phantom wallet first', 'error');
+		return;
+	}
+	
+	// Check balance
+	const hasBalance = await checkSufficientBalance();
+	if (!hasBalance) {
 		return;
 	}
 	
@@ -769,43 +1080,39 @@ function launchToken() {
 		launchBtn.disabled = true;
 		launchBtn.textContent = 'Launching...';
 	}
-	showStatus('Preparing to launch your token...', 'info');
 	
-	// Simulate pump.fun integration (replace with actual API call)
-	setTimeout(function() {
-		try {
-			// In a real implementation, you would:
-			// 1. Upload the image to IPFS or similar
-			// 2. Call pump.fun API to create the token
-			// 3. Handle the response
-			
-			// For now, we'll simulate success and redirect to pump.fun
-			var pumpFunUrl = 'https://pump.fun/create?' + 
-				'name=' + encodeURIComponent(name) + 
-				'&symbol=' + encodeURIComponent(ticker) + 
-				'&description=' + encodeURIComponent('') +
-				'&image=' + encodeURIComponent(window.currentArtwork);
-			
-			showStatus('Success! Redirecting to pump.fun...', 'success');
-			
-			setTimeout(function() {
-				window.open(pumpFunUrl, '_blank');
+	try {
+		showStatus('Preparing your 3D artwork...', 'info');
+		
+		// Upload image to IPFS
+		const imageUrl = await uploadImageToIPFS(window.currentArtwork);
+		
+		// Launch token
+		const success = await launchTokenOnPumpFun(name, ticker, imageUrl);
+		
+		if (success) {
+			setTimeout(() => {
 				closeTokenModal();
 				if (launchBtn) {
 					launchBtn.disabled = false;
-					launchBtn.textContent = 'Launch Token';
+					launchBtn.textContent = '🚀 Launch Token on Pump.fun';
 				}
-			}, 2000);
-			
-		} catch (error) {
-			console.error('Error in launchToken:', error);
-			showStatus('Error launching token. Please try again.', 'error');
+			}, 3000);
+		} else {
 			if (launchBtn) {
 				launchBtn.disabled = false;
-				launchBtn.textContent = 'Launch Token';
+				launchBtn.textContent = '🚀 Launch Token on Pump.fun';
 			}
 		}
-	}, 2000);
+		
+	} catch (error) {
+		console.error('Error in launchToken:', error);
+		showStatus('Error launching token: ' + error.message, 'error');
+		if (launchBtn) {
+			launchBtn.disabled = false;
+			launchBtn.textContent = '🚀 Launch Token on Pump.fun';
+		}
+	}
 }
 
 // Close modal when clicking outside
@@ -828,6 +1135,9 @@ function testLaunchButton() {
 window.addEventListener('load', function() {
 	console.log('Page loaded, running tests...');
 	testLaunchButton();
+	
+	// Initialize Solana
+	initializeSolana();
 	
 	// Add simple event listeners for inputs
 	var nameInput = document.getElementById('tokenName');
@@ -870,6 +1180,19 @@ window.addEventListener('load', function() {
 			<img id="previewImage" class="preview-image" alt="Your 3D Artwork" />
 		</div>
 		
+		<!-- Wallet Connection Section -->
+		<div class="wallet-section">
+			<div class="wallet-status">
+				<div>
+					<strong>Phantom Wallet:</strong> <span id="walletStatus">Not Connected</span>
+				</div>
+				<button id="connectWalletBtn" class="connect-wallet-btn" onclick="connectWallet()">
+					Connect Phantom
+				</button>
+			</div>
+			<div id="walletAddress" class="wallet-address"></div>
+		</div>
+		
 		<form onsubmit="return false;">
 			<div class="form-group">
 				<label for="tokenName">Token Name:</label>
@@ -901,13 +1224,14 @@ window.addEventListener('load', function() {
 		
 		<div id="statusMessage"></div>
 		
-		<button id="launchBtn" class="launch-btn" onclick="launchToken()">
+		<button id="launchBtn" class="launch-btn" onclick="launchToken()" disabled>
 			🚀 Launch Token on Pump.fun
 		</button>
 		
 		<div style="margin-top: 15px; text-align: center; color: #aaa; font-size: 12px;">
 			Your 3D artwork will be used as the token image.<br>
-			Description will be left empty as requested.
+			Description will be left empty as requested.<br>
+			<strong>Requires Phantom wallet and SOL for transaction fees.</strong>
 		</div>
 	</div>
 </div>
