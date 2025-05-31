@@ -1156,251 +1156,325 @@ async function launchTokenOnPumpFun(name, symbol, imageUrl) {
 			throw new Error('Wallet not connected');
 		}
 
-		showStatus('🚀 Creating REAL pump.fun token with bonding curve...', 'info');
+		showStatus('🚀 Creating pump.fun compatible token on Solana...', 'info');
 		
-		// Create pump.fun token using their actual API
-		return await createPumpFunTokenOnChain(name, symbol, imageUrl);
+		// Create a regular SPL token that's pump.fun compatible
+		return await createSPLTokenForPumpFun(name, symbol, imageUrl);
 		
 	} catch (error) {
-		console.error('Pump.fun token creation error:', error);
-		showStatus('Failed to create pump.fun token: ' + error.message, 'error');
-		
-		// Try fallback
-		throw error;
+		console.error('Token creation error:', error);
+		showStatus('Failed to create token: ' + error.message, 'error');
+		return false;
 	}
 }
 
-// Create pump.fun token on-chain using their actual program
-async function createPumpFunTokenOnChain(name, symbol, metadataUri) {
+// Create SPL token that's pump.fun compatible
+async function createSPLTokenForPumpFun(name, symbol, imageUrl) {
 	try {
-		showStatus('⚡ Connecting to pump.fun API...', 'info');
+		showStatus('⚡ Preparing token creation transaction...', 'info');
 		
+		// Create metadata
+		const tokenMetadata = {
+			name: name,
+			symbol: symbol,
+			description: `${name} - A unique 3D rotating artwork created with 3D Drawing Studio. Ready for pump.fun!`,
+			image: imageUrl,
+			attributes: [
+				{ trait_type: 'Created With', value: '3D Drawing Studio' },
+				{ trait_type: 'Art Type', value: '3D Rotating Artwork' },
+				{ trait_type: 'Platform', value: 'Solana SPL' }
+			],
+			external_url: 'https://pump.fun'
+		};
+		
+		// Encode metadata as data URI
+		const metadataJson = JSON.stringify(tokenMetadata);
+		const metadataUri = `data:application/json;base64,${btoa(metadataJson)}`;
+		
+		showStatus('💎 Creating SPL token with metadata...', 'info');
+		
+		// Standard Solana program IDs
+		const TOKEN_PROGRAM_ID = new solanaWeb3.PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA');
+		const METADATA_PROGRAM_ID = new solanaWeb3.PublicKey('metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s');
+		const ASSOCIATED_TOKEN_PROGRAM_ID = new solanaWeb3.PublicKey('ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL');
+		
+		// Generate mint keypair
+		const mintKeypair = solanaWeb3.Keypair.generate();
 		const userPublicKey = new solanaWeb3.PublicKey(walletAddress);
 		
-		// Try pump.fun's actual API endpoints
-		let transactionData;
+		// Calculate required accounts
+		const mintRent = await connection.getMinimumBalanceForRentExemption(82); // Mint account size
+		const metadataAddress = await getMetadataAddress(mintKeypair.publicKey);
+		const associatedTokenAddress = await getAssociatedTokenAddress(mintKeypair.publicKey, userPublicKey);
 		
-		// Method 1: Try pumpportal API
-		try {
-			const pumpApiUrl = 'https://pumpportal.fun/api/trade-local';
-			
-			const response = await fetch(pumpApiUrl, {
-				method: 'POST',
-				headers: {
-					'Content-Type': 'application/json',
-				},
-				body: JSON.stringify({
-					publicKey: walletAddress,
-					action: 'create',
-					tokenName: name,
-					tokenTicker: symbol,
-					description: `${name} - A unique 3D rotating artwork created with 3D Drawing Studio. Experience the future of meme tokens!`,
-					imageUrl: metadataUri,
-					initialBuy: 0.01,
-					slippage: 10
-				})
-			});
-			
-			if (response.ok) {
-				transactionData = await response.json();
-			}
-		} catch (error) {
-			console.log('PumpPortal API not available, trying direct method');
-		}
+		// Get recent blockhash
+		const { blockhash } = await connection.getLatestBlockhash('confirmed');
 		
-		// Method 2: Try pump.fun's main API
-		if (!transactionData || !transactionData.transaction) {
-			try {
-				const directApiUrl = 'https://pump.fun/api/create-token';
-				
-				const formData = new FormData();
-				
-				// Convert metadata URI to blob if it's base64
-				let imageBlob;
-				if (metadataUri.startsWith('data:')) {
-					const response = await fetch(metadataUri);
-					imageBlob = await response.blob();
-				} else {
-					// Create a simple image blob
-					const canvas = document.createElement('canvas');
-					canvas.width = 400;
-					canvas.height = 400;
-					const ctx = canvas.getContext('2d');
-					ctx.fillStyle = '#1a0b2e';
-					ctx.fillRect(0, 0, 400, 400);
-					ctx.fillStyle = '#00ff88';
-					ctx.font = '48px Arial';
-					ctx.textAlign = 'center';
-					ctx.fillText(symbol, 200, 200);
-					imageBlob = await new Promise(resolve => canvas.toBlob(resolve));
-				}
-				
-				formData.append('name', name);
-				formData.append('symbol', symbol);
-				formData.append('description', `${name} - A unique 3D rotating artwork created with 3D Drawing Studio. Experience the future of meme tokens!`);
-				formData.append('file', imageBlob, `${symbol}_artwork.png`);
-				formData.append('twitter', '');
-				formData.append('telegram', '');
-				formData.append('website', '');
-				formData.append('showName', 'true');
-				
-				const response = await fetch(directApiUrl, {
-					method: 'POST',
-					body: formData
-				});
-				
-				if (response.ok) {
-					const result = await response.json();
-					if (result.signature) {
-						// Token was created successfully via API
-						showStatus(`🎉 PUMP.FUN TOKEN CREATED VIA API!<br><br>` +
-							`🚀 <strong>${name} (${symbol})</strong><br>` +
-							`✅ Transaction: <a href="https://solscan.io/tx/${result.signature}" target="_blank" style="color: #00ff88; text-decoration: underline;">${result.signature.slice(0, 8)}...${result.signature.slice(-8)}</a><br><br>` +
-							`🔥 <strong>Your token is now LIVE on pump.fun!</strong><br>` +
-							`💰 <a href="https://pump.fun" target="_blank" style="color: #00ff88; text-decoration: underline; font-weight: bold;">Find and Trade Your Token →</a><br>` +
-							`🎨 Your 3D artwork is the official token image!`, 'success');
-						return true;
-					}
-				}
-			} catch (error) {
-				console.log('Direct pump.fun API not available');
-			}
-		}
-		
-		// Method 3: If APIs don't work, create a compatible transaction manually
-		if (!transactionData || !transactionData.transaction) {
-			throw new Error('pump.fun APIs are not accessible from this domain. Using fallback method.');
-		}
-		
-		showStatus('✍️ Please approve the pump.fun token creation in Phantom...', 'info');
-		
-		// Deserialize the transaction
-		const tx = solanaWeb3.Transaction.from(Buffer.from(transactionData.transaction, 'base64'));
-		
-		// Sign the transaction with user's wallet
-		const signedTx = await wallet.signTransaction(tx);
-		
-		showStatus('🚀 Launching your pump.fun token...', 'info');
-		
-		// Send the signed transaction
-		const signature = await connection.sendRawTransaction(signedTx.serialize(), {
-			skipPreflight: false,
-			preflightCommitment: 'confirmed'
+		// Create transaction
+		const transaction = new solanaWeb3.Transaction({
+			recentBlockhash: blockhash,
+			feePayer: userPublicKey
 		});
 		
-		showStatus('⏳ Confirming pump.fun token creation...', 'info');
+		// 1. Create mint account
+		transaction.add(
+			solanaWeb3.SystemProgram.createAccount({
+				fromPubkey: userPublicKey,
+				newAccountPubkey: mintKeypair.publicKey,
+				space: 82,
+				lamports: mintRent,
+				programId: TOKEN_PROGRAM_ID
+			})
+		);
 		
-		// Confirm the transaction
+		// 2. Initialize mint
+		transaction.add(
+			createInitializeMintInstruction(
+				mintKeypair.publicKey,
+				9, // decimals
+				userPublicKey, // mint authority
+				userPublicKey, // freeze authority
+				TOKEN_PROGRAM_ID
+			)
+		);
+		
+		// 3. Create associated token account
+		transaction.add(
+			createAssociatedTokenAccountInstruction(
+				userPublicKey, // payer
+				associatedTokenAddress,
+				userPublicKey, // owner
+				mintKeypair.publicKey,
+				TOKEN_PROGRAM_ID,
+				ASSOCIATED_TOKEN_PROGRAM_ID
+			)
+		);
+		
+		// 4. Mint initial supply (1 billion tokens)
+		const initialSupply = BigInt(1_000_000_000 * Math.pow(10, 9)); // 1B tokens with 9 decimals
+		transaction.add(
+			createMintToInstruction(
+				mintKeypair.publicKey,
+				associatedTokenAddress,
+				userPublicKey,
+				initialSupply,
+				[],
+				TOKEN_PROGRAM_ID
+			)
+		);
+		
+		// 5. Create metadata
+		transaction.add(
+			createCreateMetadataAccountV3Instruction({
+				metadata: metadataAddress,
+				mint: mintKeypair.publicKey,
+				mintAuthority: userPublicKey,
+				payer: userPublicKey,
+				updateAuthority: userPublicKey,
+				systemProgram: solanaWeb3.SystemProgram.programId,
+				rent: solanaWeb3.SYSVAR_RENT_PUBKEY
+			}, {
+				createMetadataAccountArgsV3: {
+					data: {
+						name: name,
+						symbol: symbol,
+						uri: metadataUri,
+						sellerFeeBasisPoints: 0,
+						creators: [{
+							address: userPublicKey,
+							verified: true,
+							share: 100
+						}],
+						collection: null,
+						uses: null
+					},
+					isMutable: true,
+					collectionDetails: null
+				}
+			})
+		);
+		
+		// Sign with mint keypair
+		transaction.partialSign(mintKeypair);
+		
+		showStatus('✍️ Please sign the token creation in Phantom...', 'info');
+		
+		// Sign with user wallet
+		const signedTransaction = await wallet.signTransaction(transaction);
+		
+		showStatus('🚀 Creating your token on Solana blockchain...', 'info');
+		
+		// Send transaction
+		const signature = await connection.sendRawTransaction(signedTransaction.serialize(), {
+			skipPreflight: false,
+			preflightCommitment: 'processed'
+		});
+		
+		showStatus('⏳ Confirming token creation...', 'info');
+		
+		// Wait for confirmation
 		const confirmation = await connection.confirmTransaction(signature, 'confirmed');
 		
 		if (confirmation.value.err) {
 			throw new Error('Transaction failed: ' + JSON.stringify(confirmation.value.err));
 		}
 		
-		// Parse transaction to get mint address
-		const mintAddress = await getMintAddressFromTransaction(signature);
+		// Success!
+		const mintAddress = mintKeypair.publicKey.toBase58();
 		
-		showStatus(`🎉 PUMP.FUN TOKEN CREATED SUCCESSFULLY!<br><br>` +
+		showStatus(`🎉 TOKEN CREATED SUCCESSFULLY!<br><br>` +
 			`🚀 <strong>${name} (${symbol})</strong><br>` +
-			`✅ Mint: <a href="https://pump.fun/${mintAddress}" target="_blank" style="color: #00ff88; text-decoration: underline;">${mintAddress}</a><br>` +
+			`✅ Mint Address: <a href="https://solscan.io/token/${mintAddress}" target="_blank" style="color: #00ff88; text-decoration: underline;">${mintAddress}</a><br>` +
 			`✅ Transaction: <a href="https://solscan.io/tx/${signature}" target="_blank" style="color: #00ff88; text-decoration: underline;">${signature.slice(0, 8)}...${signature.slice(-8)}</a><br><br>` +
-			`🔥 <strong>Your token is now LIVE on pump.fun!</strong><br>` +
-			`💰 <a href="https://pump.fun/${mintAddress}" target="_blank" style="color: #00ff88; text-decoration: underline; font-weight: bold;">Trade Now →</a><br>` +
-			`📊 Bonding curve started with your initial buy!<br>` +
-			`🎨 Your 3D artwork is the official token image!`, 'success');
+			`🔥 <strong>Your token is now LIVE on Solana!</strong><br>` +
+			`💰 <strong>Next: Submit to pump.fun</strong><br>` +
+			`🎯 Go to <a href="https://pump.fun" target="_blank" style="color: #00ff88; text-decoration: underline; font-weight: bold;">pump.fun</a> and create a new token<br>` +
+			`📋 Use this mint address: <code style="background: #333; padding: 2px 4px; border-radius: 3px;">${mintAddress}</code><br>` +
+			`🎨 Upload your 3D artwork as the token image<br>` +
+			`📊 Your token will get a bonding curve and be tradeable!`, 'success');
 		
 		return true;
 		
 	} catch (error) {
-		console.error('Pump.fun on-chain creation failed:', error);
-		showStatus('❌ Failed to create pump.fun token directly: ' + error.message, 'error');
+		console.error('SPL token creation failed:', error);
 		
-		// Try fallback
-		throw error;
-	}
-}
-
-// Helper function to extract mint address from transaction
-async function getMintAddressFromTransaction(signature) {
-	try {
-		// Wait a bit for transaction to be processed
-		await new Promise(resolve => setTimeout(resolve, 2000));
-		
-		// Get transaction details
-		const txDetails = await connection.getTransaction(signature, {
-			commitment: 'confirmed',
-			maxSupportedTransactionVersion: 0
-		});
-		
-		if (txDetails && txDetails.meta && txDetails.meta.postTokenBalances) {
-			// Find the mint address from token balances
-			for (const balance of txDetails.meta.postTokenBalances) {
-				if (balance.mint) {
-					return balance.mint;
-				}
-			}
+		// Provide more specific error info
+		if (error.message.includes('insufficient')) {
+			showStatus('❌ Insufficient SOL balance. You need at least 0.02 SOL for token creation.', 'error');
+		} else if (error.message.includes('blockhash')) {
+			showStatus('❌ Network issue. Please try again in a moment.', 'error');
+		} else if (error.message.includes('rejected')) {
+			showStatus('❌ Transaction rejected. Please try again.', 'error');
+		} else {
+			showStatus('❌ Failed to create token: ' + error.message, 'error');
 		}
 		
-		// Fallback: try to parse from logs
-		if (txDetails && txDetails.meta && txDetails.meta.logMessages) {
-			for (const log of txDetails.meta.logMessages) {
-				if (log.includes('mint')) {
-					// Extract mint address from log message if possible
-					const mintMatch = log.match(/[1-9A-HJ-NP-Za-km-z]{32,44}/);
-					if (mintMatch) {
-						return mintMatch[0];
-					}
-				}
-			}
-		}
-		
-		// If we can't find it, return a placeholder
-		return 'unknown';
-		
-	} catch (error) {
-		console.error('Failed to get mint address:', error);
-		return 'unknown';
-	}
-}
-
-// Fallback: Open pump.fun create page with pre-filled data
-async function redirectToPumpFunCreate(name, symbol, imageUrl) {
-	try {
-		showStatus('🎯 Opening pump.fun token creator...', 'info');
-		
-		// Download the artwork for user
-		const link = document.createElement('a');
-		link.href = imageUrl;
-		link.download = `${symbol}_3D_artwork.png`;
-		document.body.appendChild(link);
-		link.click();
-		document.body.removeChild(link);
-		
-		// Create pump.fun URL with pre-filled data
-		const description = encodeURIComponent(`${name} - A unique 3D rotating artwork created with 3D Drawing Studio. Experience the future of meme tokens!`);
-		const pumpFunUrl = `https://pump.fun/create?name=${encodeURIComponent(name)}&symbol=${encodeURIComponent(symbol)}&description=${description}`;
-		
-		// Open pump.fun in new tab
-		window.open(pumpFunUrl, '_blank');
-		
-		showStatus(`🎨 <strong>ARTWORK DOWNLOADED!</strong><br><br>` +
-			`🚀 pump.fun is opening in a new tab with:<br>` +
-			`• Name: <strong>${name}</strong><br>` +
-			`• Symbol: <strong>${symbol}</strong><br>` +
-			`• Description: Pre-filled<br><br>` +
-			`📥 <strong>Next steps:</strong><br>` +
-			`1. Upload the downloaded ${symbol}_3D_artwork.png<br>` +
-			`2. Click "Create Token" on pump.fun<br>` +
-			`3. Your token will be LIVE with bonding curve!<br><br>` +
-			`🔥 <strong>Your 3D art will be the official token image!</strong>`, 'success');
-		
-		return true;
-		
-	} catch (error) {
-		console.error('Fallback creation failed:', error);
-		showStatus('Failed to open pump.fun creator: ' + error.message, 'error');
 		return false;
 	}
+}
+
+// Helper functions for SPL token creation
+function createInitializeMintInstruction(mint, decimals, mintAuthority, freezeAuthority, tokenProgramId) {
+	const keys = [
+		{ pubkey: mint, isSigner: false, isWritable: true },
+		{ pubkey: solanaWeb3.SYSVAR_RENT_PUBKEY, isSigner: false, isWritable: false }
+	];
+	
+	const data = new Uint8Array([
+		0, // InitializeMint instruction
+		decimals,
+		...mintAuthority.toBytes(),
+		...(freezeAuthority ? [1, ...freezeAuthority.toBytes()] : [0])
+	]);
+	
+	return new solanaWeb3.TransactionInstruction({
+		keys,
+		programId: tokenProgramId,
+		data
+	});
+}
+
+function createAssociatedTokenAccountInstruction(payer, associatedToken, owner, mint, tokenProgramId, associatedTokenProgramId) {
+	const keys = [
+		{ pubkey: payer, isSigner: true, isWritable: true },
+		{ pubkey: associatedToken, isSigner: false, isWritable: true },
+		{ pubkey: owner, isSigner: false, isWritable: false },
+		{ pubkey: mint, isSigner: false, isWritable: false },
+		{ pubkey: solanaWeb3.SystemProgram.programId, isSigner: false, isWritable: false },
+		{ pubkey: tokenProgramId, isSigner: false, isWritable: false },
+		{ pubkey: solanaWeb3.SYSVAR_RENT_PUBKEY, isSigner: false, isWritable: false }
+	];
+	
+	return new solanaWeb3.TransactionInstruction({
+		keys,
+		programId: associatedTokenProgramId,
+		data: new Uint8Array([])
+	});
+}
+
+function createMintToInstruction(mint, destination, authority, amount, signers, tokenProgramId) {
+	const keys = [
+		{ pubkey: mint, isSigner: false, isWritable: true },
+		{ pubkey: destination, isSigner: false, isWritable: true },
+		{ pubkey: authority, isSigner: true, isWritable: false }
+	];
+	
+	// Convert bigint to byte array (little endian)
+	const amountBytes = new Uint8Array(8);
+	let value = amount;
+	for (let i = 0; i < 8; i++) {
+		amountBytes[i] = Number(value & 0xFFn);
+		value >>= 8n;
+	}
+	
+	const data = new Uint8Array([
+		7, // MintTo instruction
+		...amountBytes
+	]);
+	
+	return new solanaWeb3.TransactionInstruction({
+		keys,
+		programId: tokenProgramId,
+		data
+	});
+}
+
+function createCreateMetadataAccountV3Instruction(accounts, args) {
+	// Simplified metadata creation instruction
+	const keys = [
+		{ pubkey: accounts.metadata, isSigner: false, isWritable: true },
+		{ pubkey: accounts.mint, isSigner: false, isWritable: false },
+		{ pubkey: accounts.mintAuthority, isSigner: true, isWritable: false },
+		{ pubkey: accounts.payer, isSigner: true, isWritable: true },
+		{ pubkey: accounts.updateAuthority, isSigner: false, isWritable: false },
+		{ pubkey: accounts.systemProgram, isSigner: false, isWritable: false },
+		{ pubkey: accounts.rent, isSigner: false, isWritable: false }
+	];
+	
+	// Simplified instruction data for metadata creation
+	const nameBytes = new TextEncoder().encode(args.createMetadataAccountArgsV3.data.name);
+	const symbolBytes = new TextEncoder().encode(args.createMetadataAccountArgsV3.data.symbol);
+	const uriBytes = new TextEncoder().encode(args.createMetadataAccountArgsV3.data.uri);
+	
+	const data = new Uint8Array([
+		33, // CreateMetadataAccountV3 instruction discriminator
+		...encodeString(args.createMetadataAccountArgsV3.data.name),
+		...encodeString(args.createMetadataAccountArgsV3.data.symbol),
+		...encodeString(args.createMetadataAccountArgsV3.data.uri),
+		0, 0, // seller fee basis points (0)
+		1, // has creators
+		1, // number of creators
+		...accounts.updateAuthority.toBytes(), // creator address
+		1, // verified
+		100, // share
+		args.createMetadataAccountArgsV3.isMutable ? 1 : 0 // is mutable
+	]);
+	
+	return new solanaWeb3.TransactionInstruction({
+		keys,
+		programId: new solanaWeb3.PublicKey('metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s'),
+		data
+	});
+}
+
+function encodeString(str) {
+	const bytes = new TextEncoder().encode(str);
+	const length = new Uint8Array(4);
+	const view = new DataView(length.buffer);
+	view.setUint32(0, bytes.length, true); // little endian
+	return new Uint8Array([...length, ...bytes]);
+}
+
+async function getMetadataAddress(mint) {
+	const [address] = await solanaWeb3.PublicKey.findProgramAddress(
+		[
+			new TextEncoder().encode('metadata'),
+			new solanaWeb3.PublicKey('metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s').toBytes(),
+			mint.toBytes()
+		],
+		new solanaWeb3.PublicKey('metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s')
+	);
+	return address;
 }
 </script>
 </head>
