@@ -22,77 +22,104 @@ A stunning 3D drawing application that allows users to create rotating 3D artwor
 - **3D Engine**: Custom ge1doot.js library
 - **Styling**: Modern CSS with pump.fun color palette
 
-## 🚀 Quick Start
+## 🚀 Quick Deploy to Render.com (Recommended)
 
-### Local Development
+**⚠️ IMPORTANT: Token creation requires hosting on a live domain due to CORS restrictions. Deploy to Render for full functionality!**
 
-1. **Clone the repository**
-   ```bash
-   git clone <your-repo-url>
-   cd 3d-drawing-studio
-   ```
+### 1. Deploy to Render.com
 
-2. **Start the server**
-   ```bash
-   node server.js
-   ```
-
-3. **Open your browser**
-   ```
-   http://localhost:8000
-   ```
-
-### 🌐 Deploy to Render.com
-
-1. **Fork this repository** to your GitHub account
-
-2. **Create a new Web Service** on [Render.com](https://render.com)
-
-3. **Connect your GitHub repository**
-
-4. **Configure the service:**
-   - **Build Command**: `npm install` (optional, no dependencies needed)
-   - **Start Command**: `npm start`
+1. **Fork/Clone this repository**
+2. **Go to [Render.com](https://render.com)** and sign up
+3. **Create a new Web Service**
+4. **Connect your GitHub repository**
+5. **Configure the service:**
+   - **Name**: `3d-drawing-studio`
    - **Environment**: `Node`
-   - **Plan**: Free tier works perfectly
+   - **Build Command**: `npm install`
+   - **Start Command**: `node server.js`
+   - **Port**: `8000` (auto-detected)
 
-5. **Deploy!** - Your app will be live at `https://your-app-name.onrender.com`
+6. **Click "Deploy"** - Your app will be live in ~5 minutes!
 
-### 🔧 Environment Variables
-
-The app automatically detects the deployment environment:
-
-- **PORT**: Automatically set by Render.com (defaults to 8000 locally)
-- **NODE_ENV**: Set to `production` for production deployments
-
-### 📦 Other Deployment Options
-
-#### Heroku
-```bash
-# Install Heroku CLI, then:
-heroku create your-app-name
-git push heroku main
-```
-
-#### Vercel
-```bash
-# Install Vercel CLI, then:
-vercel --prod
-```
-
-#### Railway
-```bash
-# Connect your GitHub repo to Railway
-# No additional configuration needed
-```
+### 2. Your Live App Features
+- ✅ **3D Drawing Canvas** - Draw with mouse/touch
+- ✅ **Real Token Creation** - Direct pump.fun integration
+- ✅ **Phantom Wallet Integration** - Connect & sign transactions
+- ✅ **IPFS Upload** - Automatic artwork storage
+- ✅ **Solana Blockchain** - Real transactions on mainnet
 
 ## 🎮 How to Use
 
-1. **Draw Your Art**: Use mouse or finger to draw on the canvas
-2. **Watch it Rotate**: Your drawing automatically rotates in 3D space
-3. **Launch Token**: Click the "🚀 Launch Token" button
-4. **Enter Details**: Add token name and ticker symbol
-5. **Create on Pump.fun**: Your 3D artwork becomes the token image
+1. **Draw Your Art** - Create 3D rotating artwork on the canvas
+2. **Click "🚀 Launch Token"** - Opens the token creation modal
+3. **Connect Phantom Wallet** - One-click wallet connection
+4. **Launch Token** - Creates a real token on pump.fun with your art!
+
+## 🛠️ Local Development
+
+For development only (token creation won't work due to CORS):
+
+```bash
+# Install dependencies
+npm install
+
+# Start local server
+node server.js
+
+# Open in browser
+http://localhost:8000
+```
+
+## ⚠️ CORS Limitations on Localhost
+
+When running locally, pump.fun's API is blocked by browser CORS policies. You'll see:
+- ✅ 3D drawing works
+- ✅ Wallet connection works  
+- ❌ Token creation fails (CORS blocked)
+- 🔄 Automatic redirect to pump.fun as fallback
+
+**Solution**: Deploy to Render.com for full functionality!
+
+## 🔧 Technical Stack
+
+- **Frontend**: HTML5 Canvas, JavaScript, CSS3
+- **3D Engine**: Custom WebGL implementation
+- **Blockchain**: Solana Web3.js
+- **Wallet**: Phantom integration
+- **Storage**: IPFS via pump.fun
+- **Backend**: Node.js HTTP server
+
+## 📦 Dependencies
+
+- `@solana/web3.js` - Solana blockchain integration
+- `buffer` - Browser compatibility
+- Node.js built-in modules for server
+
+## 🌐 Live Demo
+
+Deploy to Render and your app will be available at:
+`https://your-app-name.onrender.com`
+
+## 🎨 Features
+
+- **3D Drawing Canvas**: Real-time 3D artwork creation
+- **Token Launch**: Direct pump.fun integration
+- **Wallet Integration**: Phantom wallet support
+- **Mobile Responsive**: Touch-friendly interface
+- **Auto-fill Forms**: Random token names for testing
+- **Transaction Links**: Direct links to blockchain explorer
+- **IPFS Storage**: Permanent artwork storage
+
+## 🚀 Production Ready
+
+This app is configured for production deployment with:
+- Environment variable support
+- Proper error handling
+- Security headers
+- Static file serving
+- Graceful shutdown handling
+
+Deploy to Render.com and start creating tokens from 3D art! 🎨→🪙
 
 ## 🎨 Controls
 

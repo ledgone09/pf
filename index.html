@@ -310,6 +310,9 @@ const SOLANA_RPC_URL = 'https://magical-boldest-patina.solana-mainnet.quiknode.p
 const PUMP_FUN_PROGRAM_ID = '6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P';
 const PUMP_FUN_API_URL = 'https://pumpportal.fun/api';
 
+// Check if running on localhost
+const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+
 // Global Solana variables
 let connection;
 let wallet = null;
@@ -398,68 +401,6 @@ function updateWalletUI() {
     }
 }
 
-// Upload image to IPFS (using pump.fun's service)
-async function uploadImageToIPFS(imageDataUrl) {
-	try {
-		showStatus('Uploading artwork to IPFS...', 'info');
-		
-		// Convert data URL to blob
-		const response = await fetch(imageDataUrl);
-		const blob = await response.blob();
-		
-		// Create form data for pump.fun's IPFS service
-		const formData = new FormData();
-		formData.append('file', blob, 'token-artwork.png');
-		
-		// Try pump.fun's IPFS upload first
-		try {
-			const uploadResponse = await fetch('https://pump.fun/api/ipfs', {
-				method: 'POST',
-				body: formData
-			});
-			
-			if (uploadResponse.ok) {
-				const result = await uploadResponse.json();
-				const ipfsUrl = result.ipfsUrl || result.url;
-				console.log('Image uploaded to pump.fun IPFS:', ipfsUrl);
-				return ipfsUrl;
-			}
-		} catch (error) {
-			console.warn('Pump.fun IPFS upload failed, trying alternative...');
-		}
-		
-		// Fallback to public IPFS gateway
-		try {
-			const uploadResponse = await fetch('https://api.pinata.cloud/pinning/pinFileToIPFS', {
-				method: 'POST',
-				headers: {
-					'pinata_api_key': 'free_tier_key',
-					'pinata_secret_api_key': 'free_tier_secret'
-				},
-				body: formData
-			});
-			
-			if (uploadResponse.ok) {
-				const result = await uploadResponse.json();
-				const ipfsUrl = `https://gateway.pinata.cloud/ipfs/${result.IpfsHash}`;
-				console.log('Image uploaded to Pinata IPFS:', ipfsUrl);
-				return ipfsUrl;
-			}
-		} catch (error) {
-			console.warn('Pinata IPFS upload failed, using data URL...');
-		}
-		
-		// Final fallback: return the original data URL
-		console.log('Using original data URL as fallback');
-		return imageDataUrl;
-		
-	} catch (error) {
-		console.error('IPFS upload error:', error);
-		// Return the original data URL as final fallback
-		return imageDataUrl;
-	}
-}
-
 // Create token metadata
 function createTokenMetadata(name, symbol, imageUrl) {
     return {
@@ -496,72 +437,89 @@ async function launchTokenOnPumpFun(name, symbol, imageUrl) {
 			throw new Error('Wallet not connected');
 		}
 
+		// Check if running on localhost and warn about CORS limitations
+		if (isLocalhost) {
+			showStatus('⚠️ Running on localhost - pump.fun API may be blocked by CORS. Deploy to Render for full functionality.', 'warning');
+		}
+
 		showStatus('Creating token metadata...', 'info');
 		
-		// Create metadata
-		const metadata = createTokenMetadata(name, symbol, imageUrl);
+		// Convert data URL to blob for upload
+		const response = await fetch(imageUrl);
+		const blob = await response.blob();
 		
-		showStatus('Uploading metadata to IPFS...', 'info');
+		// Create form data for pump.fun IPFS upload
+		const formData = new FormData();
+		formData.append('file', blob, 'token-artwork.png');
+		formData.append('name', name);
+		formData.append('symbol', symbol);
+		formData.append('description', ''); // Empty as requested
+		formData.append('website', 'https://3d-drawing-studio.com');
+		formData.append('showName', 'true');
 		
-		// Upload metadata to IPFS using pump.fun's service
+		showStatus('Uploading to IPFS...', 'info');
+		
+		// Upload metadata to pump.fun IPFS
 		const metadataResponse = await fetch('https://pump.fun/api/ipfs', {
 			method: 'POST',
-			headers: {
-				'Content-Type': 'application/json',
-			},
-			body: JSON.stringify(metadata)
+			body: formData
 		});
 		
 		if (!metadataResponse.ok) {
-			throw new Error('Failed to upload metadata');
+			throw new Error('Failed to upload metadata to IPFS - CORS blocked or API unavailable');
 		}
 		
 		const metadataResult = await metadataResponse.json();
-		const metadataUri = metadataResult.metadataUri;
+		console.log('Metadata uploaded:', metadataResult);
 		
-		showStatus('Creating token mint...', 'info');
+		showStatus('Creating token transaction...', 'info');
 		
-		// Create token using pump.fun API
+		// Generate a random mint keypair
+		const mintKeypair = solanaWeb3.Keypair.generate();
+		
+		// Create token using pump.fun local transaction API
 		const createTokenResponse = await fetch('https://pumpportal.fun/api/trade-local', {
 			method: 'POST',
 			headers: {
-				'Content-Type': 'application/json',
+				'Content-Type': 'application/json'
 			},
 			body: JSON.stringify({
 				publicKey: walletAddress,
-				action: "create",
+				action: 'create',
 				tokenMetadata: {
-					name: name,
-					symbol: symbol,
-					uri: metadataUri
+					name: metadataResult.metadata.name,
+					symbol: metadataResult.metadata.symbol,
+					uri: metadataResult.metadataUri
 				},
-				mint: solanaWeb3.Keypair.generate().publicKey.toString(),
-				denominatedInSol: "true",
-				amount: 0, // Initial buy amount
+				mint: mintKeypair.publicKey.toBase58(),
+				denominatedInSol: 'true',
+				amount: 0, // No initial buy
 				slippage: 10,
 				priorityFee: 0.0005,
-				pool: "pump"
+				pool: 'pump'
 			})
 		});
 		
 		if (!createTokenResponse.ok) {
-			throw new Error('Failed to create token transaction');
+			throw new Error(`Failed to create token transaction: ${createTokenResponse.statusText} - CORS blocked or API unavailable`);
 		}
 		
-		const createTokenResult = await createTokenResponse.json();
+		showStatus('Signing transaction...', 'info');
 		
-		if (!createTokenResult.encoded) {
-			throw new Error('No transaction data received');
-		}
+		// Get the transaction data
+		const transactionData = await createTokenResponse.arrayBuffer();
+		const transaction = solanaWeb3.VersionedTransaction.deserialize(new Uint8Array(transactionData));
 		
-		showStatus('Signing and sending transaction...', 'info');
+		// Sign with both mint keypair and wallet
+		transaction.sign([mintKeypair]);
 		
-		// Decode and send the transaction
-		const transaction = solanaWeb3.Transaction.from(Buffer.from(createTokenResult.encoded, 'base64'));
-		
-		// Sign and send transaction
+		// Sign with wallet
 		const signedTransaction = await wallet.signTransaction(transaction);
-		const signature = await connection.sendRawTransaction(signedTransaction.serialize());
+		
+		showStatus('Sending transaction...', 'info');
+		
+		// Send transaction
+		const signature = await connection.sendTransaction(signedTransaction);
 		
 		showStatus('Confirming transaction...', 'info');
 		
@@ -577,10 +535,12 @@ async function launchTokenOnPumpFun(name, symbol, imageUrl) {
 		// Show success message with token details and transaction link
 		setTimeout(() => {
 			const explorerUrl = `https://solscan.io/tx/${signature}`;
+			const tokenUrl = `https://pump.fun/${mintKeypair.publicKey.toBase58()}`;
 			showStatus(`🎉 Token "${name}" (${symbol}) created successfully!<br><br>` +
+				`Token Address: <a href="${tokenUrl}" target="_blank" style="color: #00ff88; text-decoration: underline;">${mintKeypair.publicKey.toBase58().slice(0, 20)}...</a><br><br>` +
 				`Transaction: <a href="${explorerUrl}" target="_blank" style="color: #00ff88; text-decoration: underline;">${signature.slice(0, 20)}...</a><br><br>` +
 				`Your token is now live on pump.fun!<br>` +
-				`<a href="https://pump.fun" target="_blank" style="color: #00ff88; text-decoration: underline;">View on pump.fun →</a>`, 'success');
+				`<a href="${tokenUrl}" target="_blank" style="color: #00ff88; text-decoration: underline;">Trade on pump.fun →</a>`, 'success');
 		}, 1000);
 		
 		return true;
@@ -588,7 +548,24 @@ async function launchTokenOnPumpFun(name, symbol, imageUrl) {
 	} catch (error) {
 		console.error('Token creation error:', error);
 		
-		// Fallback to redirect if direct creation fails
+		// Check if it's a CORS/Network error on localhost
+		if (isLocalhost && (error.message.includes('CORS') || error.message.includes('NetworkError') || error.message.includes('fetch'))) {
+			showStatus('🚨 CORS Error: pump.fun API blocked on localhost.<br><br>Deploy to Render.com for full functionality!<br><br>Redirecting to pump.fun as fallback...', 'error');
+			
+			setTimeout(() => {
+				const pumpFunUrl = `https://pump.fun/create?` + 
+					`name=${encodeURIComponent(name)}&` +
+					`symbol=${encodeURIComponent(symbol)}&` +
+					`description=${encodeURIComponent('')}`;
+				
+				window.open(pumpFunUrl, '_blank');
+				showStatus('Complete token creation on pump.fun', 'info');
+			}, 3000);
+			
+			return true;
+		}
+		
+		// Fallback to redirect for other errors
 		if (error.message.includes('Failed to create token transaction') || error.message.includes('Failed to upload metadata')) {
 			showStatus('Direct creation failed, redirecting to pump.fun...', 'info');
 			
@@ -1201,11 +1178,8 @@ async function launchToken() {
 	try {
 		showStatus('Preparing your 3D artwork...', 'info');
 		
-		// Upload image to IPFS
-		const imageUrl = await uploadImageToIPFS(window.currentArtwork);
-		
-		// Launch token
-		const success = await launchTokenOnPumpFun(name, ticker, imageUrl);
+		// Launch token directly with the artwork
+		const success = await launchTokenOnPumpFun(name, ticker, window.currentArtwork);
 		
 		if (success) {
 			setTimeout(() => {
